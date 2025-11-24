@@ -78,7 +78,7 @@ const App: React.FC = () => {
     if (contentEndRef.current) {
       contentEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [story, loading]); // Added loading to scroll when loading text appears
+  }, [story, loading]);
 
   // Dynamic Loading Text Logic
   useEffect(() => {
@@ -127,12 +127,10 @@ const App: React.FC = () => {
   const handleChoice = async (choiceText: string) => {
     if (!genre || !story) return;
 
-    // 1. Update UI immediately to show loading
     setLoading(true);
-    setIsTyping(true); // Reset typing for next segment
+    setIsTyping(true);
     setError(null);
 
-    // 2. Add user choice to history
     const updatedHistory = [
       ...history,
       { role: "user", text: choiceText } as HistoryItem,
@@ -140,14 +138,12 @@ const App: React.FC = () => {
     setHistory(updatedHistory);
 
     try {
-      // 3. Fetch next segment
       const nextSegment = await continueStory(
         genre,
         updatedHistory,
         choiceText
       );
 
-      // 4. Update Story State
       setStory(nextSegment);
       setHistory((prev) => [
         ...prev,
@@ -177,7 +173,8 @@ const App: React.FC = () => {
 
   if (!isMobile) {
     return (
-      <div className="flex items-center justify-center h-[100vh] w-screen bg-blue-50 text-slate-900 p-8 font-sans">
+      // FIX 1: Viewport locked
+      <div className="fixed inset-0 h-[100dvh] w-screen flex items-center justify-center bg-blue-50 text-slate-900 p-8 font-sans overflow-hidden overscroll-none">
         <div className="text-center max-w-md bg-white rounded-2xl shadow-xl p-12 border border-blue-100">
           <Smartphone className="w-16 h-16 mx-auto mb-6 text-blue-500" />
           <h1 className="text-2xl font-bold mb-4 text-blue-900">
@@ -195,7 +192,8 @@ const App: React.FC = () => {
   // Genre Selection Screen
   if (!story && !loading && !genre) {
     return (
-      <div className="h-[100vh] w-full flex flex-col bg-blue-50 relative overflow-hidden font-sans">
+      // FIX 2: Viewport locked
+      <div className="fixed inset-0 h-[100dvh] w-full flex flex-col bg-blue-50 relative overflow-hidden font-sans overscroll-none">
         {/* Header */}
         <header className="z-10 pt-12 pb-6 px-6 text-center bg-white shadow-sm border-b border-blue-100">
           <h1 className="text-3xl font-bold text-blue-600 tracking-tight mb-2">
@@ -206,17 +204,20 @@ const App: React.FC = () => {
           </p>
         </header>
 
-        {/* Grid */}
-        <div className="z-10 flex-1 overflow-y-auto p-6 grid grid-cols-1 gap-4">
+        {/* Grid - FIX 3: Reduced padding (p-4) and gap (gap-3) */}
+        <div className="z-10 flex-1 overflow-y-auto p-4 grid grid-cols-1 gap-3">
           <button
             onClick={() => handleGenreSelect(Genre.DETECTIVE)}
+            // FIX 4: Reduced button padding (p-4 instead of p-6)
             className="group relative p-4 bg-white rounded-xl border border-blue-100 shadow-sm active:scale-[0.98] transition-all hover:shadow-md hover:border-blue-300"
           >
-            <div className="flex items-center justify-between mb-2">
+            {/* FIX 5: Reduced margin (mb-1 instead of mb-2) */}
+            <div className="flex items-center justify-between mb-1">
               <span className="font-bold text-lg text-slate-900">
                 {Genre.DETECTIVE}
               </span>
-              <Fingerprint className="w-6 h-6 text-blue-600" />
+              {/* FIX 6: Reduced icon size (w-5 instead of w-6) */}
+              <Fingerprint className="w-5 h-5 text-blue-600" />
             </div>
             <p className="text-left text-sm text-slate-600 leading-tight">
               Rain-slicked streets, smokey offices, and a case that doesn't add
@@ -228,11 +229,11 @@ const App: React.FC = () => {
             onClick={() => handleGenreSelect(Genre.ADVENTURE)}
             className="group relative p-4 bg-white rounded-xl border border-blue-100 shadow-sm active:scale-[0.98] transition-all hover:shadow-md hover:border-blue-300"
           >
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-1">
               <span className="font-bold text-lg text-slate-900">
                 {Genre.ADVENTURE}
               </span>
-              <Compass className="w-6 h-6 text-blue-600" />
+              <Compass className="w-5 h-5 text-blue-600" />
             </div>
             <p className="text-left text-sm text-slate-600 leading-tight">
               Lost temples, treacherous jungles, and the hunt for glory.
@@ -243,11 +244,11 @@ const App: React.FC = () => {
             onClick={() => handleGenreSelect(Genre.ROMANCE)}
             className="group relative p-4 bg-white rounded-xl border border-blue-100 shadow-sm active:scale-[0.98] transition-all hover:shadow-md hover:border-blue-300"
           >
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-1">
               <span className="font-bold text-lg text-slate-900">
                 {Genre.ROMANCE}
               </span>
-              <Heart className="w-6 h-6 text-blue-600" />
+              <Heart className="w-5 h-5 text-blue-600" />
             </div>
             <p className="text-left text-sm text-slate-600 leading-tight">
               Stolen glances, grand ballrooms, and scandals whispered behind
@@ -259,11 +260,11 @@ const App: React.FC = () => {
             onClick={() => handleGenreSelect(Genre.HISTORICAL)}
             className="group relative p-4 bg-white rounded-xl border border-blue-100 shadow-sm active:scale-[0.98] transition-all hover:shadow-md hover:border-blue-300"
           >
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-1">
               <span className="font-bold text-lg text-slate-900">
                 {Genre.HISTORICAL}
               </span>
-              <Landmark className="w-6 h-6 text-blue-600" />
+              <Landmark className="w-5 h-5 text-blue-600" />
             </div>
             <p className="text-left text-sm text-slate-600 leading-tight">
               Witness the turning tides of history through the eyes of the
@@ -284,7 +285,8 @@ const App: React.FC = () => {
   // Initial Loading Screen (Between Genres)
   if (loading && !story) {
     return (
-      <div className="h-[100vh] w-full bg-blue-50 flex flex-col items-center justify-center font-sans">
+      // FIX 7: Viewport locked
+      <div className="fixed inset-0 h-[100dvh] w-full bg-blue-50 flex flex-col items-center justify-center font-sans overscroll-none">
         <LoadingSpinner genre={genre} />
         <p className="mt-6 text-blue-500 font-medium italic animate-pulse text-lg">
           {loadingText}
@@ -295,7 +297,8 @@ const App: React.FC = () => {
 
   // Story Screen
   return (
-    <div className="h-[100vh] w-full flex flex-col bg-blue-50 relative overflow-hidden font-sans">
+    // FIX 8: Viewport locked
+    <div className="fixed inset-0 h-[100dvh] w-full flex flex-col bg-blue-50 relative overflow-hidden font-sans overscroll-none">
       {/* Top: Fixed Titles */}
       <div className="z-10 flex-none px-6 py-2 bg-white/90 backdrop-blur-md border-b border-blue-100 shadow-sm">
         <div className="flex flex-col items-center relative py-2">
@@ -306,12 +309,12 @@ const App: React.FC = () => {
             Quit
           </button>
 
-          {/* Story Name (Generated) on Top - Matched to 'Hi, I am Raconteur' style */}
+          {/* Story Name */}
           <h1 className="text-2xl font-bold text-blue-600 tracking-tight leading-tight mb-1">
             {storyTitle || genre}
           </h1>
 
-          {/* Chapter Title Below - Subtle */}
+          {/* Chapter Title */}
           <h2 className="text-sm font-normal text-slate-400 uppercase tracking-widest">
             {story?.chapterTitle || "Loading..."}
           </h2>
@@ -342,7 +345,6 @@ const App: React.FC = () => {
       {/* Bottom: Fixed Choices */}
       {!loading && (
         <div className="z-20 absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-blue-50 via-blue-50/95 to-transparent pt-12">
-          {/* Increased duration for slower appearance (2000ms), added ease-out */}
           <div
             className={`space-y-3 transition-opacity duration-[2000ms] ease-out ${
               isTyping
@@ -350,7 +352,7 @@ const App: React.FC = () => {
                 : "opacity-100 pointer-events-auto"
             }`}
           >
-            {/* Render Choices - Square with rounded edges */}
+            {/* Render Choices */}
             {story?.choices?.map((choice, idx) => (
               <button
                 key={idx}
