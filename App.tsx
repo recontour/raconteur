@@ -207,7 +207,7 @@ const App: React.FC = () => {
         </header>
 
         {/* Grid */}
-        <div className="z-10 flex-1 overflow-y-auto p-6 grid grid-cols-1 gap-4">
+        <div className="z-10 flex-1 overflow-y-auto p-2 grid grid-cols-1 gap-2">
           <button
             onClick={() => handleGenreSelect(Genre.DETECTIVE)}
             className="group relative p-6 bg-white rounded-xl border border-blue-100 shadow-sm active:scale-[0.98] transition-all hover:shadow-md hover:border-blue-300"
