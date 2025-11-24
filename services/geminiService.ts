@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { Genre, StorySegment, HistoryItem } from "../types";
 import { getSystemInstruction } from "../constants";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const API_KEY =
   (import.meta.env && import.meta.env.VITE_GEMINI_KEY) ||
