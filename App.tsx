@@ -177,7 +177,7 @@ const App: React.FC = () => {
 
   if (!isMobile) {
     return (
-      <div className="flex items-center justify-center h-[100vh] w-screen bg-blue-50 text-slate-900 p-8 font-sans">
+      <div className="flex items-center justify-center h-[100dvh] w-screen bg-blue-50 text-slate-900 p-8 font-sans">
         <div className="text-center max-w-md bg-white rounded-2xl shadow-xl p-12 border border-blue-100">
           <Smartphone className="w-16 h-16 mx-auto mb-6 text-blue-500" />
           <h1 className="text-2xl font-bold mb-4 text-blue-900">
