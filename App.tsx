@@ -11,6 +11,8 @@ import { startNewStory, continueStory } from "./services/geminiService";
 import { Typewriter } from "./components/Typewriter";
 import { LoadingSpinner } from "./components/LoadingSpinner";
 
+const API_KEY = import.meta.env.VITE_GEMINI_KEY;
+
 // Loading messages configuration
 const LOADING_MESSAGES: Record<string, string[]> = {
   [Genre.DETECTIVE]: [
