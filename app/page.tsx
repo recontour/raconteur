@@ -1,65 +1,143 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import type { WtfFact } from "./api/wtf-fact/route";
+
+type GameState = "loading" | "ready" | "answered";
 
 export default function Home() {
+  const [fact, setFact] = useState<WtfFact | null>(null);
+  const [gameState, setGameState] = useState<GameState>("loading");
+  const [selectedOption, setSelectedOption] = useState<1 | 2 | null>(null);
+  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+
+  const fetchFact = useCallback(async () => {
+    setGameState("loading");
+    setSelectedOption(null);
+    setIsCorrect(null);
+    setFact(null);
+
+    try {
+      const res = await fetch("/api/wtf-fact");
+      if (!res.ok) throw new Error("Failed to fetch");
+      const data: WtfFact = await res.json();
+      setFact(data);
+      setGameState("ready");
+    } catch {
+      // retry once on error
+      setGameState("loading");
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFact();
+  }, [fetchFact]);
+
+  const handleOptionClick = (option: 1 | 2) => {
+    if (gameState !== "ready" || !fact) return;
+    const correct = option === fact.correctOption;
+    setSelectedOption(option);
+    setIsCorrect(correct);
+    setGameState("answered");
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="flex items-center justify-center min-h-screen bg-neutral-950">
+      {/* Mobile container */}
+      <div className="relative flex flex-col w-full max-w-100 h-screen bg-neutral-900 overflow-hidden">
+        {/* Header */}
+        <div className="px-5 pt-10 pb-4 shrink-0">
+          <h1 className="text-2xl font-bold tracking-tight text-white">
+            WTF Fact
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="text-sm text-neutral-400 mt-1">
+            Which one is the real mind-blower?
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* Context strip */}
+        <div className="px-5 pb-4 shrink-0 min-h-14">
+          {fact && gameState !== "loading" ? (
+            <p className="text-base text-neutral-200 leading-snug">
+              {fact.context}
+            </p>
+          ) : (
+            <div className="h-5 w-3/4 rounded bg-neutral-700 animate-pulse" />
+          )}
         </div>
-      </main>
+
+        {/* Two square buttons */}
+        <div className="flex flex-col flex-1 gap-3 px-5 pb-5">
+          {[1, 2].map((opt) => {
+            const optNum = opt as 1 | 2;
+            const isSelected = selectedOption === optNum;
+            const isLoading = gameState === "loading";
+
+            return (
+              <button
+                key={opt}
+                onClick={() => handleOptionClick(optNum)}
+                disabled={gameState !== "ready"}
+                className={[
+                  "flex-1 w-full rounded-2xl flex items-center justify-center p-6 text-center",
+                  "transition-all duration-200 active:scale-[0.98]",
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500",
+                  isLoading
+                    ? "bg-neutral-800 cursor-not-allowed"
+                    : gameState === "ready"
+                    ? "bg-indigo-600 hover:bg-indigo-500 cursor-pointer shadow-lg shadow-indigo-900/40"
+                    : isSelected
+                    ? "bg-neutral-700 cursor-not-allowed"
+                    : "bg-neutral-800 cursor-not-allowed opacity-50",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              >
+                {isLoading ? (
+                  <span className="block h-4 w-2/3 rounded bg-neutral-700 animate-pulse" />
+                ) : (
+                  <span className="text-white font-semibold text-base leading-snug">
+                    {opt === 1 ? fact?.option1 : fact?.option2}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Result modal */}
+        {gameState === "answered" && fact && (
+          <div className="absolute inset-0 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+            <div className="w-full bg-neutral-900 rounded-t-3xl px-6 pt-6 pb-10 shadow-2xl">
+              {/* Result badge */}
+              <div
+                className={[
+                  "inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-bold mb-4",
+                  isCorrect
+                    ? "bg-emerald-500/20 text-emerald-400"
+                    : "bg-red-500/20 text-red-400",
+                ].join(" ")}
+              >
+                <span>{isCorrect ? "✓" : "✗"}</span>
+                <span>{isCorrect ? "That's right!" : "Not quite!"}</span>
+              </div>
+
+              {/* Explanation */}
+              <p className="text-neutral-200 text-sm leading-relaxed mb-6">
+                {fact.fullExplanation}
+              </p>
+
+              {/* Next button */}
+              <button
+                onClick={fetchFact}
+                className="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-bold py-4 rounded-2xl transition-all duration-150 shadow-lg shadow-indigo-900/40"
+              >
+                Next Fact →
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
