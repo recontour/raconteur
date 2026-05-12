@@ -430,7 +430,11 @@ export default function OnboardingFlow() {
       const captchaRes = await fetch("/api/recaptcha", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: recaptchaToken, action: "LOGIN" }),
+        body: JSON.stringify({
+          token: recaptchaToken,
+          action: "LOGIN",
+          phone: `+91${phone.join("")}`,
+        }),
       });
       if (!captchaRes.ok) {
         const data = await captchaRes.json().catch(() => ({})) as { error?: string };
@@ -439,10 +443,8 @@ export default function OnboardingFlow() {
         return;
       }
     } catch (err) {
-      console.error("[recaptcha] verification request failed:", err);
-      setOtpError("Security check failed. Please try again.");
-      setSendingOtp(false);
-      return;
+      // Network error — fail-open so users aren't locked out
+      console.warn("[recaptcha] verification request failed, continuing:", err);
     }
 
     // ── 2. Firebase phone auth (invisible RecaptchaVerifier) ────────────────

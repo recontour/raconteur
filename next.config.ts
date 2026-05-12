@@ -17,6 +17,12 @@ const nextConfig: NextConfig = {
             key: "Cross-Origin-Opener-Policy",
             value: "same-origin-allow-popups",
           },
+          {
+            // Allow reCAPTCHA Enterprise to use the Private State Token API.
+            // Without this Chrome logs "Unrecognized feature: 'private-token'".
+            key: "Permissions-Policy",
+            value: "private-state-token-issuance=*, private-state-token-redemption=*",
+          },
         ],
       },
     ];
