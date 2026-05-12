@@ -413,14 +413,26 @@ export default function OnboardingFlow() {
     if (sendingOtp) return;
     setSendingOtp(true);
     setOtpError("");
+
+    // Always destroy any existing verifier — stale instances cause the
+    // "Failed to initialize reCAPTCHA Enterprise" / stuck loop issue.
     try {
-      if (!recaptchaVerifierRef.current) {
-        recaptchaVerifierRef.current = new RecaptchaVerifier(
-          auth,
-          recaptchaRef.current!,
-          { size: "invisible" }
-        );
-      }
+      recaptchaVerifierRef.current?.clear();
+    } catch {}
+    recaptchaVerifierRef.current = null;
+
+    // Wipe the container so reCAPTCHA can inject a fresh widget
+    if (recaptchaRef.current) recaptchaRef.current.innerHTML = "";
+
+    try {
+      recaptchaVerifierRef.current = new RecaptchaVerifier(
+        auth,
+        recaptchaRef.current!,
+        { size: "invisible" }
+      );
+      // Pre-render the widget before calling signInWithPhoneNumber
+      await recaptchaVerifierRef.current.render();
+
       const result = await signInWithPhoneNumber(
         auth,
         `+91${phone.join("")}`,
@@ -431,6 +443,10 @@ export default function OnboardingFlow() {
     } catch (err) {
       setOtpError("Failed to send code. Check your number and try again.");
       console.error(err);
+      // Clean up on failure so the next attempt gets a fresh verifier
+      try { recaptchaVerifierRef.current?.clear(); } catch {}
+      recaptchaVerifierRef.current = null;
+      if (recaptchaRef.current) recaptchaRef.current.innerHTML = "";
     } finally {
       setSendingOtp(false);
     }
@@ -447,6 +463,9 @@ export default function OnboardingFlow() {
     setOtpError("");
     try {
       const cred = await confirmation.confirm(code);
+      // Create/upsert the user record immediately — name + phone are known now.
+      // Google fields will be appended in step 5. Fire-and-forget; don't block navigation.
+      void saveUserIfNew().catch(console.error);
       const isNew = cred.user.metadata.creationTime === cred.user.metadata.lastSignInTime;
       if (isNew) {
         goTo(4); // show terms for new users
@@ -612,6 +631,7 @@ export default function OnboardingFlow() {
                       focused: { backgroundColor: "#e5e5ea", scale: 1 },
                       filled:  { backgroundColor: "#1d1d1f", scale: 1 },
                     }}
+                    initial="empty"
                     animate={phone[i] ? "filled" : focusedPhone === i ? "focused" : "empty"}
                     transition={{ type: "spring", damping: 20, stiffness: 600 }}
                     className="absolute inset-0 rounded-xl"
@@ -630,7 +650,12 @@ export default function OnboardingFlow() {
                       const next = [...phone];
                       next[i] = val[val.length - 1];
                       setPhone(next);
-                      if (i < 9) phoneRefs.current[i + 1]?.focus();
+                      if (i < 9) {
+                        phoneRefs.current[i + 1]?.focus();
+                      } else {
+                        // All 10 digits filled — dismiss keyboard so Send Code button is visible
+                        phoneRefs.current[9]?.blur();
+                      }
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "Backspace") {
@@ -649,7 +674,11 @@ export default function OnboardingFlow() {
                       const next = Array(10).fill("") as string[];
                       pasted.split("").forEach((ch, idx) => { next[idx] = ch; });
                       setPhone(next);
-                      phoneRefs.current[Math.min(pasted.length, 9)]?.focus();
+                      if (pasted.length >= 10) {
+                        phoneRefs.current[9]?.blur();
+                      } else {
+                        phoneRefs.current[Math.min(pasted.length, 9)]?.focus();
+                      }
                     }}
                     className="absolute inset-0 w-full h-full text-center text-xl font-semibold bg-transparent focus:outline-none"
                     style={{
@@ -727,6 +756,7 @@ export default function OnboardingFlow() {
                   focused: { backgroundColor: "#e5e5ea", scale: 1 },
                   filled: { backgroundColor: "#1d1d1f", scale: 1 },
                 }}
+                initial="empty"
                 animate={digit ? "filled" : focusedOtp === i ? "focused" : "empty"}
                 transition={{ type: "spring", damping: 20, stiffness: 600 }}
                 className="absolute inset-0 rounded-2xl"
@@ -746,10 +776,15 @@ export default function OnboardingFlow() {
                   const next = [...otp];
                   next[i] = val[val.length - 1];
                   setOtp(next);
-                  if (i < 5) otpRefs.current[i + 1]?.focus();
-                  else if (next.every((d) => d)) {
-                    const full = next.join("");
-                    if (full.length === 6) setTimeout(verifyOtp, 50);
+                  if (i < 5) {
+                    otpRefs.current[i + 1]?.focus();
+                  } else {
+                    // Last digit — dismiss keyboard, then auto-verify
+                    otpRefs.current[5]?.blur();
+                    if (next.every((d) => d)) {
+                      const full = next.join("");
+                      if (full.length === 6) setTimeout(verifyOtp, 50);
+                    }
                   }
                 }}
                 onKeyDown={(e) => {
@@ -769,8 +804,12 @@ export default function OnboardingFlow() {
                   const next = [...otp];
                   pasted.split("").forEach((ch, idx) => { next[idx] = ch; });
                   setOtp(next);
-                  const focusIdx = Math.min(pasted.length, 5);
-                  otpRefs.current[focusIdx]?.focus();
+                  if (pasted.length >= 6) {
+                    otpRefs.current[5]?.blur();
+                    setTimeout(verifyOtp, 50);
+                  } else {
+                    otpRefs.current[Math.min(pasted.length, 5)]?.focus();
+                  }
                 }}
                 className="absolute inset-0 w-full h-full text-center text-2xl font-semibold bg-transparent focus:outline-none"
                 style={{
