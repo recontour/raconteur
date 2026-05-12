@@ -19,11 +19,18 @@ export async function POST(req: NextRequest) {
 
   const { uid } = decoded;
   const body = await req.json().catch(() => ({}));
-  const { firstName, lastName } = body as { firstName?: string; lastName?: string };
+  const { firstName, lastName, photoURL: bodyPhotoURL, email: bodyEmail } =
+    body as { firstName?: string; lastName?: string; photoURL?: string | null; email?: string | null };
 
   // Pull Google identity if present in the token
   const googleIdentities = decoded.firebase?.identities?.["google.com"] as string[] | undefined;
   const googleUid = googleIdentities?.[0] ?? null;
+
+  // Prefer values passed explicitly from the client (auth.currentUser) over
+  // token claims — Firebase doesn't always populate picture/email claims
+  // immediately after linkWithPopup.
+  const resolvedEmail = bodyEmail ?? decoded.email ?? null;
+  const resolvedPhotoURL = bodyPhotoURL ?? decoded.picture ?? null;
 
   const ref = adminDb.collection("users").doc(uid);
   const snap = await ref.get();
@@ -34,8 +41,8 @@ export async function POST(req: NextRequest) {
       firstName: firstName ?? null,
       lastName: lastName ?? null,
       phone: decoded.phone_number ?? null,
-      email: decoded.email ?? null,
-      photoURL: decoded.picture ?? null,
+      email: resolvedEmail,
+      photoURL: resolvedPhotoURL,
       googleUid,
       createdAt: FieldValue.serverTimestamp(),
     });
@@ -43,8 +50,8 @@ export async function POST(req: NextRequest) {
     // Existing user just linked Google — patch the new fields
     await ref.update({
       googleUid,
-      email: decoded.email ?? null,
-      photoURL: decoded.picture ?? null,
+      email: resolvedEmail,
+      photoURL: resolvedPhotoURL,
       updatedAt: FieldValue.serverTimestamp(),
     });
   }

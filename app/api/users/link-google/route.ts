@@ -14,7 +14,7 @@ import { FieldValue } from "firebase-admin/firestore";
  *   4. Deletes uid_B                    (orphan Google-only account)
  *   5. Updates Firestore for uid_A; removes uid_B's doc
  *
- * Body:    { googleEmail: string }
+ * Body:    { googleProviderUid: string }  — the Google OAuth "sub" (stable Google UID)
  * Headers: Authorization: Bearer <phoneUserIdToken>
  */
 export async function POST(req: NextRequest) {
@@ -36,17 +36,21 @@ export async function POST(req: NextRequest) {
   const uidA = phoneDecoded.uid;
 
   // ── 2. Verify Google token ───────────────────────────────────────────────
-  const body = await req.json().catch(() => ({})) as { googleEmail?: string };
-  const { googleEmail } = body;
+  const body = await req.json().catch(() => ({})) as { googleProviderUid?: string };
+  const { googleProviderUid } = body;
 
-  if (!googleEmail) {
-    return NextResponse.json({ error: "Missing googleEmail" }, { status: 400 });
+  if (!googleProviderUid) {
+    return NextResponse.json({ error: "Missing googleProviderUid" }, { status: 400 });
   }
 
-  // ── 3. Look up uid_B by Google email ─────────────────────────────────────
+  // ── 3. Look up uid_B by Google provider UID ───────────────────────────────
   let userB: Awaited<ReturnType<typeof adminAuth.getUser>>;
   try {
-    userB = await adminAuth.getUserByEmail(googleEmail);
+    const result = await adminAuth.getUsers([{ providerId: "google.com", providerUid: googleProviderUid }]);
+    if (result.users.length === 0) {
+      return NextResponse.json({ error: "Google account not found" }, { status: 404 });
+    }
+    userB = result.users[0];
   } catch {
     return NextResponse.json({ error: "Google account not found" }, { status: 404 });
   }
@@ -87,9 +91,9 @@ export async function POST(req: NextRequest) {
         providerToLink: {
           providerId: "google.com",
           uid: googleProvider.uid,
-          email: googleProvider.email,
-          displayName: googleProvider.displayName,
-          photoURL: googleProvider.photoURL,
+          email: userB.email ?? googleProvider.email,
+          displayName: userB.displayName ?? googleProvider.displayName,
+          photoURL: userB.photoURL ?? googleProvider.photoURL,
         },
       });
     } catch (err) {
@@ -117,8 +121,8 @@ export async function POST(req: NextRequest) {
   await refA.set(
     {
       googleUid: googleProvider.uid,
-      email: googleProvider.email ?? null,
-      photoURL: googleProvider.photoURL ?? null,
+      email: userB.email ?? googleProvider.email ?? null,
+      photoURL: userB.photoURL ?? googleProvider.photoURL ?? null,
       phone: userA.phoneNumber ?? null,
       updatedAt: FieldValue.serverTimestamp(),
     },

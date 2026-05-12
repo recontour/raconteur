@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { signOut } from "firebase/auth";
+import Avatar from "boring-avatars";
 import { useAuth } from "./auth";
 import { auth } from "@/lib/firebase";
 import { useRouter, usePathname } from "next/navigation";
@@ -102,7 +103,7 @@ export function UserBubble() {
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const photo       = user && !imgError && user.photoURL ? user.photoURL : null;
-  const initial     = user ? (user.displayName ?? user.email ?? "?").slice(0, 1).toUpperCase() : "?";
+  const avatarSeed  = user ? (user.displayName ?? user.email ?? user.phoneNumber ?? user.uid ?? "user") : "user";
   const isDark      = theme === "dark";
 
   const overlayBg    = isDark ? "rgba(8,8,8,0.94)"             : "rgba(248,248,248,0.94)";
@@ -163,12 +164,13 @@ export function UserBubble() {
                 style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             </motion.div>
           ) : (
-            <motion.span key="initial"
+            <motion.div key="avatar"
               initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }}
               transition={{ duration: 0.14 }}
+              style={{ width: "100%", height: "100%", display: "flex" }}
             >
-              {initial}
-            </motion.span>
+              <Avatar name={avatarSeed} size={38} variant="marble" colors={["#6366f1","#8b5cf6","#ec4899","#f59e0b","#10b981"]} />
+            </motion.div>
           )}
         </AnimatePresence>
       </motion.button>
@@ -241,7 +243,7 @@ export function UserBubble() {
                       <img src={photo} alt="" referrerPolicy="no-referrer"
                         style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     ) : (
-                      <span style={{ fontSize: 24, fontWeight: 600, color: "#fff" }}>{initial}</span>
+                      <Avatar name={avatarSeed} size={58} variant="marble" colors={["#6366f1","#8b5cf6","#ec4899","#f59e0b","#10b981"]} />
                     )}
                   </div>
                   <div style={{ minWidth: 0 }}>
