@@ -15,6 +15,7 @@ import {
   User,
 } from "firebase/auth";
 import { useRouter } from "next/navigation";
+import { executeRecaptcha } from "@/lib/recaptcha";
 
 type Step = 0 | 1 | 2 | 3 | 4 | 5;
 
@@ -414,6 +415,37 @@ export default function OnboardingFlow() {
     setSendingOtp(true);
     setOtpError("");
 
+    // ── 1. reCAPTCHA Enterprise gate ────────────────────────────────────────
+    let recaptchaToken: string;
+    try {
+      recaptchaToken = await executeRecaptcha("LOGIN");
+    } catch (err) {
+      console.error("[recaptcha] execute failed:", err);
+      setOtpError("Security check failed. Please refresh and try again.");
+      setSendingOtp(false);
+      return;
+    }
+
+    try {
+      const captchaRes = await fetch("/api/recaptcha", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: recaptchaToken, action: "LOGIN" }),
+      });
+      if (!captchaRes.ok) {
+        const data = await captchaRes.json().catch(() => ({})) as { error?: string };
+        setOtpError(data.error ?? "Security check failed. Please try again.");
+        setSendingOtp(false);
+        return;
+      }
+    } catch (err) {
+      console.error("[recaptcha] verification request failed:", err);
+      setOtpError("Security check failed. Please try again.");
+      setSendingOtp(false);
+      return;
+    }
+
+    // ── 2. Firebase phone auth (invisible RecaptchaVerifier) ────────────────
     // Always destroy any existing verifier — stale instances cause the
     // "Failed to initialize reCAPTCHA Enterprise" / stuck loop issue.
     try {
@@ -506,9 +538,8 @@ export default function OnboardingFlow() {
   const renderWelcome = () => (
     <div className="flex flex-col h-full w-full max-w-sm mx-auto">
       <div className="flex-1 flex flex-col items-center justify-center px-6 text-center space-y-4">
-        <div className="w-16 h-16 rounded-2xl bg-black flex items-center justify-center shadow-lg mb-2 overflow-hidden">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/favicon.ico" alt="Raconteur" className="w-10 h-10 object-contain" />
+        <div className="w-16 h-16 rounded-2xl bg-black flex items-center justify-center shadow-lg mb-2">
+          <span style={{ fontFamily: "'SF Pro Display', -apple-system, sans-serif", fontSize: 28, fontWeight: 700, color: "#fff", letterSpacing: "-0.5px", lineHeight: 1 }}>R</span>
         </div>
         <h1 className="text-4xl font-semibold tracking-tight text-[#1d1d1f]">
           Welcome to<br />Raconteur.

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import { AuthProvider } from "@/app/helper/auth";
 import { UserBubble } from "@/app/helper/components";
@@ -30,6 +31,11 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        {/* reCAPTCHA Enterprise — invisible, no badge, loaded after hydration */}
+        <Script
+          src={`https://www.google.com/recaptcha/enterprise.js?render=${process.env.NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY}`}
+          strategy="afterInteractive"
+        />
         <AuthProvider>
           <UserBubble />
           {children}
