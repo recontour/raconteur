@@ -61,7 +61,7 @@ export function executeRecaptcha(action: string): Promise<string> {
         // Small delay after ready() so the Enterprise client finishes
         // registering before we call execute(). This avoids the race on
         // first page load without needing retries on most calls.
-        window.grecaptcha.enterprise.ready(() => setTimeout(tryExecute, 100));
+        window.grecaptcha.enterprise.ready(() => { setTimeout(tryExecute, 100); });
 
       if (window.grecaptcha?.enterprise) {
         waitForReady();
