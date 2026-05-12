@@ -29,17 +29,18 @@ export function executeRecaptcha(action: string): Promise<string> {
     return Promise.reject(new Error("executeRecaptcha must be called client-side"));
   }
 
-  // grecaptcha.enterprise.ready() only guarantees the API object exists — the
-  // internal client registration is async and can lag behind. When execute()
-  // is called too early it throws "No reCAPTCHA clients exist". We catch that
-  // error and retry with a short back-off (up to ~2 s total).
+  // grecaptcha.enterprise.ready() fires when the API object exists, but the
+  // internal client registration (a network handshake) happens ~100 ms later.
+  // Calling execute() in that window throws "No reCAPTCHA clients exist".
+  // We wait for ready(), then poll execute() until it stops throwing that
+  // specific error — no visual challenge, no popup, completely silent.
   const attempt = (retriesLeft: number): Promise<string> =>
     new Promise<string>((resolve, reject) => {
-      const run = () => {
+      const tryExecute = () => {
         const onError = (err: unknown) => {
           const msg = err instanceof Error ? err.message : String(err);
           if (msg.includes("No reCAPTCHA clients exist") && retriesLeft > 0) {
-            setTimeout(() => attempt(retriesLeft - 1).then(resolve).catch(reject), 200);
+            setTimeout(() => attempt(retriesLeft - 1).then(resolve).catch(reject), 150);
           } else {
             reject(err);
           }
@@ -51,20 +52,26 @@ export function executeRecaptcha(action: string): Promise<string> {
             .then(resolve)
             .catch(onError);
         } catch (err) {
-          // execute() can throw synchronously before returning a promise
+          // execute() throws synchronously before returning a promise
           onError(err);
         }
       };
 
+      const waitForReady = () =>
+        // Small delay after ready() so the Enterprise client finishes
+        // registering before we call execute(). This avoids the race on
+        // first page load without needing retries on most calls.
+        window.grecaptcha.enterprise.ready(() => setTimeout(tryExecute, 100));
+
       if (window.grecaptcha?.enterprise) {
-        window.grecaptcha.enterprise.ready(run);
+        waitForReady();
       } else {
-        // Script not yet loaded — poll until it appears
+        // Script not yet injected — poll until it appears
         let polls = 0;
         const id = setInterval(() => {
           if (window.grecaptcha?.enterprise) {
             clearInterval(id);
-            window.grecaptcha.enterprise.ready(run);
+            waitForReady();
           } else if (++polls > 100) {
             clearInterval(id);
             reject(new Error("reCAPTCHA Enterprise failed to load"));
@@ -73,5 +80,5 @@ export function executeRecaptcha(action: string): Promise<string> {
       }
     });
 
-  return attempt(10); // up to 10 retries × 200 ms = 2 s window
+  return attempt(10); // up to 10 retries × 150 ms = 1.5 s safety net
 }
