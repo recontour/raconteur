@@ -10,9 +10,11 @@ import {
   ConfirmationResult,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithCredential,
   linkWithPopup,
   onAuthStateChanged,
   User,
+  type AuthError,
 } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { executeRecaptcha } from "@/lib/recaptcha";
@@ -167,17 +169,38 @@ function GoogleAccountSheet({
       }
       onSuccess();
     } catch (err: unknown) {
-      // popup closed by user — don't show error
-      if (
-        err &&
-        typeof err === "object" &&
-        "code" in err &&
-        (err as { code: string }).code === "auth/popup-closed-by-user"
-      ) {
+      const code = (err && typeof err === "object" && "code" in err)
+        ? (err as { code: string }).code
+        : "";
+      // Silently dismiss — user closed the popup themselves
+      if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
         setSigningIn(false);
         return;
       }
-      setSheetError("Sign-in failed. Please try again.");
+      if (code === "auth/credential-already-in-use") {
+        // Google credential already tied to another account — sign in with it directly.
+        const googleCredential = GoogleAuthProvider.credentialFromError(err as AuthError);
+        if (googleCredential) {
+          try {
+            await signInWithCredential(auth, googleCredential);
+            onSuccess();
+            return;
+          } catch (innerErr) {
+            console.error("[Google sign-in] credentialFromError fallback failed:", innerErr);
+            setSheetError("This Google account is already linked to another user.");
+            setSigningIn(false);
+            return;
+          }
+        }
+        setSheetError("This Google account is already linked to another user.");
+      } else if (code === "auth/email-already-in-use") {
+        setSheetError("This Google account is already linked to another user.");
+      } else if (code === "auth/popup-blocked") {
+        setSheetError("Popup was blocked. Please allow popups for this site.");
+      } else {
+        console.error("[Google sign-in] error code:", code, err);
+        setSheetError(`Sign-in failed (${code || "unknown"}). Please try again.`);
+      }
       setSigningIn(false);
     }
   };
@@ -371,10 +394,32 @@ export default function OnboardingFlow() {
   const [showGoogleSheet, setShowGoogleSheet] = useState(false);
   const router = useRouter();
 
+  // On mount: if Firebase already has a session (e.g. after a page refresh),
+  // resume at the correct step instead of showing step 0 again.
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => {
+      if (!u) return;
+      // User is already authenticated — check if Google is linked
+      const hasGoogle = u.providerData.some((p) => p.providerId === "google.com");
+      if (hasGoogle) {
+        // Fully set up — skip to welcome
+        router.replace("/welcome");
+      } else {
+        // Phone auth done, Google not yet linked — jump to step 5
+        setDirection(1);
+        setStep(5);
+      }
+      unsub(); // only run once on mount
+    });
+    return unsub;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const saveUserIfNew = useCallback(async () => {
     const user = auth.currentUser;
     if (!user) return;
-    const idToken = await user.getIdToken();
+    // Force-refresh so the token includes any newly-linked provider (e.g. Google after linkWithPopup)
+    const idToken = await user.getIdToken(true);
     const res = await fetch("/api/users", {
       method: "POST",
       headers: {
