@@ -128,75 +128,6 @@ const inputCls =
   "w-full px-4 py-4 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black text-black text-lg shadow-sm transition-all placeholder:text-gray-400";
 
 // ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
-// UserAvatar — persistent fixed bubble, top-right, survives navigation
-// ---------------------------------------------------------------------------
-function UserAvatar() {
-  const [user, setUser] = useState<User | null>(null);
-  const [mounted, setMounted] = useState(false);
-  const [imgError, setImgError] = useState(false);
-
-  useEffect(() => { setMounted(true); }, []);
-
-  useEffect(() => {
-    return onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setImgError(false);
-    });
-  }, []);
-
-  if (!mounted || !user) return null;
-
-  const initials = (user.displayName ?? user.email ?? "?").slice(0, 1).toUpperCase();
-  const photo = !imgError && user.photoURL ? user.photoURL : null;
-
-  return createPortal(
-    <motion.div
-      initial={{ opacity: 0, scale: 0.6 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ type: "spring", damping: 20, stiffness: 300 }}
-      title={user.displayName ?? user.email ?? ""}
-      style={{
-        position: "fixed",
-        top: 14,
-        right: 16,
-        zIndex: 10000,
-        width: 38,
-        height: 38,
-        borderRadius: "50%",
-        overflow: "hidden",
-        boxShadow: "0 2px 12px rgba(0,0,0,0.18), 0 0 0 2px #fff",
-        cursor: "pointer",
-        background: photo ? "transparent" : "#1d1d1f",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif",
-        fontSize: 15,
-        fontWeight: 600,
-        color: "#fff",
-        userSelect: "none",
-      }}
-    >
-      {photo ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={photo}
-          alt={user.displayName ?? ""}
-          referrerPolicy="no-referrer"
-          onError={() => setImgError(true)}
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-        />
-      ) : (
-        initials
-      )}
-    </motion.div>,
-    document.body
-  );
-}
-
-// ---------------------------------------------------------------------------
 // GoogleAccountSheet — portal-rendered bottom sheet using Firebase signInWithPopup
 // ---------------------------------------------------------------------------
 function GoogleAccountSheet({
@@ -418,8 +349,9 @@ export default function OnboardingFlow() {
   const lastNameRef = useRef<HTMLInputElement>(null);
 
   // Phone
-  const [phone, setPhone] = useState("");
-  const phoneRef = useRef<HTMLInputElement>(null);
+  const [phone, setPhone] = useState<string[]>(Array(10).fill(""));
+  const phoneRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const [focusedPhone, setFocusedPhone] = useState<number | null>(null);
 
   // OTP
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
@@ -470,7 +402,7 @@ export default function OnboardingFlow() {
   // Focus name input on step 1
   useEffect(() => {
     if (step === 1) setTimeout(() => firstNameRef.current?.focus(), 300);
-    if (step === 2) setTimeout(() => phoneRef.current?.focus(), 300);
+    if (step === 2) setTimeout(() => phoneRefs.current[0]?.focus(), 300);
     if (step === 3) setTimeout(() => otpRefs.current[0]?.focus(), 300);
   }, [step]);
 
@@ -491,7 +423,7 @@ export default function OnboardingFlow() {
       }
       const result = await signInWithPhoneNumber(
         auth,
-        `+91${phone}`,
+        `+91${phone.join("")}`,
         recaptchaVerifierRef.current
       );
       setConfirmation(result);
@@ -555,8 +487,9 @@ export default function OnboardingFlow() {
   const renderWelcome = () => (
     <div className="flex flex-col h-full w-full max-w-sm mx-auto">
       <div className="flex-1 flex flex-col items-center justify-center px-6 text-center space-y-4">
-        <div className="w-16 h-16 rounded-2xl bg-black flex items-center justify-center shadow-lg mb-2">
-          <span className="text-white text-2xl font-bold">R</span>
+        <div className="w-16 h-16 rounded-2xl bg-black flex items-center justify-center shadow-lg mb-2 overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/favicon.ico" alt="Raconteur" className="w-10 h-10 object-contain" />
         </div>
         <h1 className="text-4xl font-semibold tracking-tight text-[#1d1d1f]">
           Welcome to<br />Raconteur.
@@ -656,6 +589,9 @@ export default function OnboardingFlow() {
     <div className="flex flex-col h-full w-full max-w-sm mx-auto">
       <div className="flex-1 flex flex-col justify-center px-6 space-y-6">
         <div className="space-y-2">
+          <p className="text-[11px] font-semibold tracking-widest text-gray-400 uppercase">
+            +91 &middot; India
+          </p>
           <h2 className="text-3xl font-semibold tracking-tight text-[#1d1d1f]">
             Your phone number.
           </h2>
@@ -664,46 +600,91 @@ export default function OnboardingFlow() {
           </p>
         </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-          className="flex items-stretch rounded-2xl border border-gray-200 focus-within:border-black focus-within:ring-2 focus-within:ring-black/10 overflow-hidden shadow-sm transition-all"
-        >
-          <div className="flex items-center px-4 bg-[#f2f2f7] border-r border-gray-200 text-[#1d1d1f] font-semibold text-lg select-none">
-            +91
-          </div>
-          <input
-            ref={phoneRef}
-            type="tel"
-            placeholder="98765 43210"
-            value={phone}
-            autoComplete="tel-national"
-            inputMode="numeric"
-            onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && phone.length === 10) sendOtp();
-            }}
-            className="flex-1 px-4 py-4 bg-transparent focus:outline-none text-[#1d1d1f] text-lg placeholder:text-gray-400 tracking-wider"
-          />
-        </motion.div>
+        {/* 10-digit boxes, 2 rows of 5 */}
+        <div className="flex flex-col gap-2">
+          {([0, 5] as const).map((rowStart) => (
+            <div key={rowStart} className="flex gap-2">
+              {Array.from({ length: 5 }, (_, k) => rowStart + k).map((i) => (
+                <div key={i} className="relative flex-1" style={{ height: 60 }}>
+                  <motion.div
+                    variants={{
+                      empty:   { backgroundColor: "#f2f2f7", scale: 1 },
+                      focused: { backgroundColor: "#e5e5ea", scale: 1 },
+                      filled:  { backgroundColor: "#1d1d1f", scale: 1 },
+                    }}
+                    animate={phone[i] ? "filled" : focusedPhone === i ? "focused" : "empty"}
+                    transition={{ type: "spring", damping: 20, stiffness: 600 }}
+                    className="absolute inset-0 rounded-xl"
+                  />
+                  <input
+                    ref={(el) => { phoneRefs.current[i] = el; }}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={phone[i]}
+                    onFocus={() => setFocusedPhone(i)}
+                    onBlur={() => setFocusedPhone(null)}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, "");
+                      if (!val) return;
+                      const next = [...phone];
+                      next[i] = val[val.length - 1];
+                      setPhone(next);
+                      if (i < 9) phoneRefs.current[i + 1]?.focus();
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Backspace") {
+                        if (phone[i]) {
+                          const next = [...phone];
+                          next[i] = "";
+                          setPhone(next);
+                        } else if (i > 0) {
+                          phoneRefs.current[i - 1]?.focus();
+                        }
+                      }
+                    }}
+                    onPaste={(e) => {
+                      e.preventDefault();
+                      const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 10);
+                      const next = Array(10).fill("") as string[];
+                      pasted.split("").forEach((ch, idx) => { next[idx] = ch; });
+                      setPhone(next);
+                      phoneRefs.current[Math.min(pasted.length, 9)]?.focus();
+                    }}
+                    className="absolute inset-0 w-full h-full text-center text-xl font-semibold bg-transparent focus:outline-none"
+                    style={{
+                      color: phone[i] ? "#fff" : "#1d1d1f",
+                      caretColor: "transparent",
+                      zIndex: 1,
+                      WebkitTapHighlightColor: "transparent",
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
 
-        {otpError && step === 2 && (
-          <motion.p
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-red-500 text-sm"
-          >
-            {otpError}
-          </motion.p>
-        )}
+        <AnimatePresence>
+          {otpError && step === 2 && (
+            <motion.p
+              key="phone-error"
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              className="text-red-500 text-sm"
+            >
+              {otpError}
+            </motion.p>
+          )}
+        </AnimatePresence>
       </div>
 
       <BottomCTA offset={keyboardOffset}>
         <div className="space-y-3">
           <motion.button
             onClick={sendOtp}
-            disabled={phone.length < 10 || sendingOtp}
+            disabled={phone.join("").length < 10 || sendingOtp}
             whileTap={{ scale: 0.97 }}
             className="w-full py-4 bg-black text-white rounded-xl font-medium text-lg disabled:opacity-40 shadow-sm select-none transition-opacity"
           >
@@ -733,7 +714,7 @@ export default function OnboardingFlow() {
             Enter the code.
           </h2>
           <p className="text-gray-500 text-base">
-            Sent to +91&nbsp;{phone}
+            Sent to +91&nbsp;{phone.join("")}
           </p>
         </div>
 
@@ -971,8 +952,6 @@ export default function OnboardingFlow() {
           {screens[step]()}
         </motion.div>
       </AnimatePresence>
-
-      <UserAvatar />
 
       <GoogleAccountSheet
         open={showGoogleSheet}
