@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { motion } from "framer-motion";
+import Image from "next/image";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif";
 const ease = [0.22, 1, 0.36, 1] as [number, number, number, number];
@@ -17,12 +18,39 @@ export default function WelcomePage() {
   }, []);
 
   const firstName = user?.displayName?.split(" ")[0] ?? null;
+  const photoURL = user?.photoURL ?? null;
+  const initials = user?.displayName
+    ? user.displayName.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase()
+    : user?.phoneNumber?.slice(-2) ?? "?";
 
   return (
     <div
       className="h-dvh bg-white text-[#1d1d1f] flex flex-col"
       style={{ fontFamily: SF }}
     >
+      {/* Top-right avatar */}
+      <div className="flex justify-end px-5 pt-5">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.85 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.4, ease }}
+          className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center shadow-sm ring-1 ring-black/10"
+        >
+          {photoURL ? (
+            <Image
+              src={photoURL}
+              alt="Profile"
+              width={40}
+              height={40}
+              className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <span className="text-sm font-semibold text-gray-600 select-none">{initials}</span>
+          )}
+        </motion.div>
+      </div>
+
       <div className="flex-1 flex flex-col items-center justify-center px-6 text-center space-y-5 max-w-sm mx-auto w-full">
         {/* Checkmark */}
         <motion.div

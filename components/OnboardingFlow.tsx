@@ -10,7 +10,6 @@ import {
   ConfirmationResult,
   GoogleAuthProvider,
   signInWithPopup,
-  signInWithCredential,
   linkWithPopup,
   onAuthStateChanged,
   User,
@@ -178,19 +177,39 @@ function GoogleAccountSheet({
         return;
       }
       if (code === "auth/credential-already-in-use") {
-        // Google credential already tied to another account — sign in with it directly.
-        const googleCredential = GoogleAuthProvider.credentialFromError(err as AuthError);
-        if (googleCredential) {
+        // The Google account already has its own Firebase UID (uid_B).
+        // Use the server-side endpoint to link Google to the current phone user
+        // (uid_A) and delete the orphan uid_B — without switching sessions here.
+        // We pass the Google email so the server can look up uid_B via Admin SDK.
+        const typedErr = err as AuthError & { customData?: { email?: string } };
+        const googleEmail = typedErr.customData?.email;
+        const phoneUser = auth.currentUser;
+        if (googleEmail && phoneUser) {
           try {
-            await signInWithCredential(auth, googleCredential);
-            onSuccess();
-            return;
+            const phoneIdToken = await phoneUser.getIdToken();
+            const res = await fetch("/api/users/link-google", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${phoneIdToken}`,
+              },
+              body: JSON.stringify({ googleEmail }),
+            });
+            if (res.ok) {
+              // Force-refresh so the client token includes the newly linked Google provider
+              await phoneUser.getIdToken(true);
+              onSuccess();
+              return;
+            }
+            const body = await res.json().catch(() => ({}));
+            console.error("[Google sign-in] server-side link failed:", body);
+            setSheetError("Failed to link your Google account. Please try again.");
           } catch (innerErr) {
-            console.error("[Google sign-in] credentialFromError fallback failed:", innerErr);
-            setSheetError("This Google account is already linked to another user.");
-            setSigningIn(false);
-            return;
+            console.error("[Google sign-in] server-side link error:", innerErr);
+            setSheetError("Failed to link your Google account. Please try again.");
           }
+          setSigningIn(false);
+          return;
         }
         setSheetError("This Google account is already linked to another user.");
       } else if (code === "auth/email-already-in-use") {

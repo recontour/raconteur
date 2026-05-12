@@ -2,6 +2,14 @@ import type { NextConfig } from "next";
 import path from "path";
 
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "lh3.googleusercontent.com",
+      },
+    ],
+  },
   turbopack: {
     // Fix chunk load errors caused by spaces in the project path ("VS projects")
     root: path.resolve(__dirname),
