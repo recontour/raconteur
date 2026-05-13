@@ -7,7 +7,7 @@ import { auth } from "@/lib/firebase";
 import CityTile, { type CityData } from "@/components/welcome/CityTile";
 import { ease } from "@/lib/tokens";
 import { Shimmer } from "@/components/ui/Shimmer";
-import { InterestsPanel } from "@/components/travel/InterestsPanel";
+import { BranchingInterestsShell } from "@/components/travel/BranchingInterestsShell";
 import { ChatPanel } from "@/components/travel/ChatPanel";
 
 // -- Types ---------------------------------------------------------------------
@@ -147,28 +147,8 @@ export default function TravelPage() {
               />
             </motion.div>
 
-            {/* Explore city button � visible once a city is loaded */}
-            {locState === "done" && defaultLocation && (
-              <motion.button
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.15, ease }}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => setChatCity(defaultLocation)}
-                className="w-full bg-[#1d1d1f] text-white text-[14px] font-semibold rounded-2xl py-4 flex items-center justify-center gap-2 active:opacity-80 transition-opacity"
-              >
-                <svg
-                  width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                >
-                  <path d="M12 2L13.9 8.9L21 10.8L13.9 12.7L12 19.6L10.1 12.7L3 10.8L10.1 8.9L12 2Z" fill="white" />
-                </svg>
-                Explore {defaultLocation}
-              </motion.button>
-            )}
-
-            {/* "What are you into?" � interests capture for AI profiling */}
-            <InterestsPanel user={user} defaultLocation={defaultLocation} />
+            {/* Branching shell for TravelMaster click-conversation flow */}
+            <BranchingInterestsShell user={user} defaultLocation={defaultLocation} />
           </motion.div>
         )}
 
