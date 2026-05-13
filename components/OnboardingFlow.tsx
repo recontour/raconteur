@@ -22,6 +22,8 @@ import { StepTerms } from "./onboarding/StepTerms";
 import { StepGoogle } from "./onboarding/StepGoogle";
 import { GoogleAccountSheet } from "./onboarding/GoogleAccountSheet";
 
+import { StepNameConflict } from "./onboarding/StepNameConflict";
+
 const inputCls =
   "w-full px-4 py-4 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black text-black text-lg shadow-sm transition-all placeholder:text-gray-400";
 
@@ -50,6 +52,7 @@ export default function OnboardingFlow() {
   const [otpError, setOtpError]         = useState("");
 
   const [showGoogleSheet, setShowGoogleSheet] = useState(false);
+  const [googleUserData, setGoogleUserData] = useState<{photoURL: string | null, email: string | null, googleName: string} | null>(null);
 
   const recaptchaRef         = useRef<HTMLDivElement>(null);
   const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
@@ -75,7 +78,7 @@ export default function OnboardingFlow() {
 
   // â”€â”€ Save user to DB â€” called ONCE after Google is resolved â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Reads photoURL/email directly from auth.currentUser (populated after reload)
-  const saveUser = useCallback(async (overrides?: { photoURL: string | null; email: string | null }) => {
+  const saveUser = useCallback(async (overrides?: { photoURL: string | null; email: string | null; firstName?: string; lastName?: string }) => {
     const user = auth.currentUser;
     if (!user) return;
     const idToken = await user.getIdToken(true);
@@ -189,6 +192,7 @@ export default function OnboardingFlow() {
     setOtpError("");
     try {
       const cred = await confirmation.confirm(code);
+      try { await saveUser(); } catch (err) { console.warn('Early saveUser failed', err); }
       const isNew = cred.user.metadata.creationTime === cred.user.metadata.lastSignInTime;
       if (isNew) {
         goTo(4); // new user â†’ terms
@@ -219,8 +223,7 @@ export default function OnboardingFlow() {
     );
   };
 
-  // â”€â”€ Screen map â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const screens: Record<Step, () => React.ReactNode> = {
+   const screens: Record<Step, () => React.ReactNode> = {
     0: () => <StepWelcome onStart={() => goTo(1)} />,
     1: () => (
       <StepName
@@ -273,6 +276,27 @@ export default function OnboardingFlow() {
         }}
       />
     ),
+    6: () => (
+      <StepNameConflict
+        enteredName={`${firstName.trim()} ${lastName.trim()}`.trim()}
+        googleName={googleUserData?.googleName || ""}
+        keyboardOffset={keyboardOffset}
+        onSelect={async (chosenName: string) => {
+          const parts = chosenName.trim().split(" ");
+          const fName = parts[0] || "";
+          const lName = parts.slice(1).join(" ") || "";
+          setFirstName(fName);
+          setLastName(lName);
+          await saveUser({ 
+            photoURL: googleUserData?.photoURL ?? null, 
+            email: googleUserData?.email ?? null, 
+            firstName: fName, 
+            lastName: lName 
+          });
+          router.push("/welcome");
+        }}
+      />
+    ),
   };
 
   return (
@@ -313,3 +337,5 @@ export default function OnboardingFlow() {
     </div>
   );
 }
+
+

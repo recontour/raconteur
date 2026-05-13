@@ -5,7 +5,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import { signOut } from "firebase/auth";
 import Avatar from "boring-avatars";
 import { useAuth } from "./auth";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
+import { doc, onSnapshot } from "firebase/firestore";
 import { useRouter, usePathname } from "next/navigation";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -64,6 +65,46 @@ export function UserBubble() {
   const [open,     setOpen]     = useState(false);
   const [theme,    setTheme]    = useState<Theme>("dark");
   const [imgError, setImgError] = useState(false);
+  const [dbPhoto, setDbPhoto] = useState<string | null>(null);
+  const [dbName, setDbName] = useState<string | null>(null);
+
+  // Fetch DB user for photo and name using API to bypass client Firestore rules
+  useEffect(() => {
+    if (!user) {
+      setDbPhoto(null);
+      setDbName(null);
+      return;
+    }
+    
+    let isMounted = true;
+    
+    const fetchProfile = async () => {
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch("/api/users", {
+          headers: { Authorization: "Bearer " + token }
+        });
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          if (data && data.user) {
+            setDbPhoto(data.user.photoURL || null);
+            const f = data.user.firstName || "";
+            const l = data.user.lastName || "";
+            const n = (f + " " + l).trim();
+            setDbName(n || null);
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to fetch user DB profile", err);
+      }
+    };
+    
+    fetchProfile();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
   // Restore saved theme
   useEffect(() => {
@@ -102,8 +143,8 @@ export function UserBubble() {
   if (pathname === "/") return null;
 
   // ── Derived ────────────────────────────────────────────────────────────────
-  const photo       = user && !imgError && user.photoURL ? user.photoURL : null;
-  const avatarSeed  = user ? (user.displayName ?? user.email ?? user.phoneNumber ?? user.uid ?? "user") : "user";
+  const photo       = (!imgError && dbPhoto) ? dbPhoto : (user && !imgError && user.photoURL ? user.photoURL : null);
+  const avatarSeed  = dbName ?? (user ? (user.displayName ?? user.email ?? user.phoneNumber ?? user.uid ?? "user") : "user");
   const isDark      = theme === "dark";
 
   const overlayBg    = isDark ? "rgba(8,8,8,0.94)"             : "rgba(248,248,248,0.94)";
@@ -252,7 +293,7 @@ export function UserBubble() {
                       margin: 0, letterSpacing: "-0.02em", lineHeight: 1.2,
                       overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                     }}>
-                      {user.displayName || "User"}
+                      {dbName || user.displayName || "User"}
                     </p>
                     <p style={{
                       fontSize: 13, color: textSub, margin: "4px 0 0", lineHeight: 1,

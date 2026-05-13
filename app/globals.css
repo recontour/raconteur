@@ -1,1 +1,6 @@
 @import "tailwindcss";
+
+/* Hide reCAPTCHA badge — attribution kept per Google policy */
+.grecaptcha-badge {
+  visibility: hidden !important;
+}

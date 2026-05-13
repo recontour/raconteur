@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
@@ -15,7 +15,7 @@ import {
 interface Props {
   open: boolean;
   onClose: () => void;
-  onSuccess: (photoURL: string | null, email: string | null) => void;
+  onSuccess: (photoURL: string | null, email: string | null, googleName?: string | null) => void;
 }
 
 export function GoogleAccountSheet({ open, onClose, onSuccess }: Props) {
@@ -39,7 +39,7 @@ export function GoogleAccountSheet({ open, onClose, onSuccess }: Props) {
       const provider = new GoogleAuthProvider();
       const currentUser = auth.currentUser;
       if (currentUser) {
-        // Capture photo/email from the OAuth result BEFORE reload() — the result
+        // Capture photo/email from the OAuth result BEFORE reload() â€” the result
         // has fresh Google profile data that reload() may not preserve.
         const result = await linkWithPopup(currentUser, provider);
         const gPD = result.user.providerData.find((p) => p.providerId === "google.com");
@@ -50,7 +50,11 @@ export function GoogleAccountSheet({ open, onClose, onSuccess }: Props) {
       } else {
         const result = await signInWithPopup(auth, provider);
         const gPD = result.user.providerData.find((p) => p.providerId === "google.com");
-        onSuccess(result.user.photoURL ?? gPD?.photoURL ?? null, result.user.email ?? gPD?.email ?? null);
+        onSuccess(
+          result.user.photoURL ?? gPD?.photoURL ?? null,
+          result.user.email ?? gPD?.email ?? null,
+          result.user.displayName ?? gPD?.displayName ?? null
+        );
       }
     } catch (err: unknown) {
       const code = (err && typeof err === "object" && "code" in err)
@@ -65,20 +69,22 @@ export function GoogleAccountSheet({ open, onClose, onSuccess }: Props) {
       if (code === "auth/credential-already-in-use") {
         // The Google account already has its own Firebase UID (uid_B).
         // Use the server-side endpoint to link Google to the current phone user
-        // (uid_A) and delete the orphan uid_B — without switching sessions here.
+        // (uid_A) and delete the orphan uid_B â€” without switching sessions here.
         // Decode the Google OAuth idToken JWT to get the stable Google UID (sub).
         const googleCredential = GoogleAuthProvider.credentialFromError(err as AuthError);
         const googleOAuthToken = googleCredential?.idToken;
         let googleProviderUid: string | undefined;
         let jwtPhoto: string | null = null;
         let jwtEmail: string | null = null;
+          let jwtName: string | null = null;
         if (googleOAuthToken) {
           try {
             const payload = JSON.parse(atob(googleOAuthToken.split(".")[1]));
             googleProviderUid = payload.sub as string;
-            // Also grab photo and email from the JWT — most reliable source here
+            // Also grab photo and email from the JWT â€” most reliable source here
             jwtPhoto = (payload.picture as string | undefined) ?? null;
             jwtEmail = (payload.email as string | undefined) ?? null;
+            jwtName = (payload.name as string | undefined) ?? null;
           } catch { /* ignore decode errors */ }
         }
         const phoneUser = auth.currentUser;
@@ -97,8 +103,8 @@ export function GoogleAccountSheet({ open, onClose, onSuccess }: Props) {
               // Force-refresh so the client token includes the newly linked Google provider
               await phoneUser.getIdToken(true);
               await reload(phoneUser);
-              // Use JWT-decoded values — most reliable for this code path
-              onSuccess(jwtPhoto, jwtEmail);
+              // Use JWT-decoded values â€” most reliable for this code path
+              onSuccess(jwtPhoto, jwtEmail, jwtName);
               return;
             }
             const body = await res.json().catch(() => ({}));
@@ -251,3 +257,5 @@ function GoogleLogo({ size }: { size: number }) {
     </svg>
   );
 }
+
+

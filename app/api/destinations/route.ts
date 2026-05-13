@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
-import { adminAuth } from "@/lib/firebase-admin";
+import { adminAuth, adminDb } from "@/lib/firebase-admin";
+import { FieldValue } from "firebase-admin/firestore";
 
 interface NominatimResult {
   display_name: string;
@@ -69,12 +70,13 @@ export async function POST(req: NextRequest) {
   const idToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
   if (!idToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  try { await adminAuth.verifyIdToken(idToken); } catch {
+  let uid: string;
+  try { uid = (await adminAuth.verifyIdToken(idToken)).uid; } catch {
     return NextResponse.json({ error: "Invalid token" }, { status: 401 });
   }
 
-  const body = await req.json().catch(() => ({})) as { placeName?: string };
-  const { placeName } = body;
+  const body = await req.json().catch(() => ({})) as { placeName?: string; destinationName?: string };
+  const { placeName, destinationName } = body;
   if (!placeName) return NextResponse.json({ error: "placeName required" }, { status: 400 });
 
   const serpKey = process.env.SERPAPI_KEY;
@@ -85,8 +87,12 @@ export async function POST(req: NextRequest) {
   const fmt = (d: Date) => d.toISOString().split("T")[0];
 
   const serpUrl = new URL("https://serpapi.com/search.json");
+  // Use the short destinationName (e.g. "Goa") not the full Nominatim display_name
+  const searchQuery = `resorts in ${destinationName ?? placeName.split(",")[0].trim()}`;
+  console.log("[destinations POST] SerpAPI query:", searchQuery);
+
   serpUrl.searchParams.set("engine", "google_hotels");
-  serpUrl.searchParams.set("q", `resorts in ${placeName}`);
+  serpUrl.searchParams.set("q", searchQuery);
   serpUrl.searchParams.set("check_in_date", fmt(tomorrow));
   serpUrl.searchParams.set("check_out_date", fmt(dayAfter));
   serpUrl.searchParams.set("hl", "en");
@@ -95,6 +101,7 @@ export async function POST(req: NextRequest) {
   try {
     const res = await fetch(serpUrl.toString());
     const data = await res.json() as HotelsApiResponse;
+    console.log("[destinations POST] SerpAPI status:", res.status, "properties:", (data.properties ?? []).length);
     if (!res.ok) {
       console.error("[destinations POST] SerpAPI error:", data.error);
       return NextResponse.json({ resorts: [] });
@@ -108,6 +115,16 @@ export async function POST(req: NextRequest) {
       reviews: p.reviews,
       thumbnail: p.images?.[0]?.thumbnail,
     }));
+    // Fire-and-forget: log to travelLogs (strip undefined fields for Firestore)
+    const resortsForDb = resorts.map((r) =>
+      Object.fromEntries(Object.entries(r).filter(([, v]) => v !== undefined))
+    );
+    adminDb.collection("travelLogs").add({
+      uid,
+      destination: destinationName ?? placeName,
+      resorts: resortsForDb,
+      timestamp: FieldValue.serverTimestamp(),
+    }).catch((err) => console.error("[travelLogs write]", err));
     return NextResponse.json({ resorts });
   } catch (err) {
     console.error("[destinations POST] fetch error:", err);
