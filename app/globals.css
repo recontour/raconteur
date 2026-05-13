@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Global font — Apple system stack */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+}
+
 /* Hide reCAPTCHA badge — attribution kept per Google policy */
 .grecaptcha-badge {
   visibility: hidden !important;

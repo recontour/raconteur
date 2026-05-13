@@ -7,41 +7,58 @@ const apiKey = (process.env.GEMINI_API_KEY || "").trim();
 const isDummyKey = !apiKey || apiKey.includes("your_actual");
 const ai = !isDummyKey ? new GoogleGenAI({ apiKey }) : null;
 
-// Helper to reliably extract arrays (like tags) from the model response
-function extractJSON(text: string): unknown {
-  const t = text.trim();
-  try { return JSON.parse(t); } catch { /* try next */ }
-  const fenced = t.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-  if (fenced) { try { return JSON.parse(fenced[1]); } catch { /* try next */ } }
-  const braced = t.match(/\[[\s\S]*\]/); // Array match for tags
-  if (braced) { try { return JSON.parse(braced[0]); } catch { /* try next */ } }
-  throw new Error("Cannot parse JSON from model response");
+const FALLBACK_TITLE = "What will be your next story?";
+
+function cleanModelText(text: string | null | undefined): string {
+  const cleaned = (text ?? "").trim().replace(/^["']|["']$/g, "");
+  return cleaned || `${FALLBACK_TITLE} The world is full of untold chapters waiting for you.`;
 }
 
-// Fetch real-time weather (Free, no API key required)
-async function fetchWeather(location: string) {
-  try {
-    const controller = new AbortController();
-    setTimeout(() => controller.abort(), 2000); // 2 second timeout
-    const res = await fetch(`https://wttr.in/${encodeURIComponent(location)}?format=%C+%t,+Wind+%w`, { signal: controller.signal });
-    if (res.ok) return await res.text();
-  } catch (e) {
-    console.error("[Weather Fetch Error]", e);
+async function generateWelcomeMessage(input: {
+  firstName: string | null;
+  defaultLocation: string;
+  cities: string[];
+}): Promise<string> {
+  const { firstName, defaultLocation, cities } = input;
+
+  if (!ai) {
+    if (defaultLocation) {
+      return `${FALLBACK_TITLE} Welcome${firstName ? `, ${firstName}` : ""}. You are in ${defaultLocation} today, and your next journey is ready whenever you are.`;
+    }
+    return `${FALLBACK_TITLE} Welcome${firstName ? `, ${firstName}` : ""}. Set your home location to unlock a more personal concierge experience.`;
   }
-  return "Typical seasonal weather";
+
+  const prompt = `You are an exclusive, attentive travel concierge.\nWrite one short welcome message around 40-60 words.\nInclude the exact phrase: "What will be your next story?"\nUser name: ${firstName || "Traveler"}\nDefault location: ${defaultLocation || "Unknown"}\nRecent cities: ${cities.length > 0 ? cities.join(", ") : "None"}\nTone: elegant, warm, concise.\nOutput only the final message text.`;
+
+  try {
+    const result = await ai.models.generateContent({
+      model: "gemini-3.1-flash-lite-preview",
+      contents: prompt,
+    });
+    return cleanModelText(result.text);
+  } catch (err) {
+    console.error("[travel-agent GET] AI generation failed", err);
+    if (defaultLocation) {
+      return `${FALLBACK_TITLE} Welcome${firstName ? `, ${firstName}` : ""}. You are in ${defaultLocation}, and we can shape your next plan from here.`;
+    }
+    return `${FALLBACK_TITLE} Welcome${firstName ? `, ${firstName}` : ""}. Set your home location to unlock a more personal concierge experience.`;
+  }
 }
 
-// GET /api/home-welcome
-// Concierge Agent: Generates a welcome message with weather/AQI and updates the userIndex.
+// GET /api/travel-agent
+// Message flow: read userIndex welcomeReply first, generate+save only if missing.
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization") ?? "";
   const idToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
 
   if (!idToken) {
     return Response.json({ 
-      title: "What will be your next story?",
-      message: "Discover the world's best destinations.", 
-      userName: null 
+      title: FALLBACK_TITLE,
+      message: "Discover the world's best destinations.",
+      userName: null,
+      defaultLocation: "",
+      needsInitialization: true,
+      tags: []
     });
   }
 
@@ -53,15 +70,55 @@ export async function GET(req: NextRequest) {
     userName = decoded.name ?? null;
   } catch {
     return Response.json({ 
-      title: "What will be your next story?",
-      message: "Discover the world's best destinations.", 
-      userName: null 
+      title: FALLBACK_TITLE,
+      message: "Discover the world's best destinations.",
+      userName: null,
+      defaultLocation: "",
+      needsInitialization: true,
+      tags: []
     });
   }
 
   const firstName = userName?.split(" ")[0] ?? null;
 
-  // â”€â”€ 1. Fetch Travel History â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const userIndexRef = adminDb.collection("userIndex").doc(uid);
+  let userIndexData: Record<string, unknown> = {};
+  try {
+    const userIndexSnap = await userIndexRef.get();
+    if (userIndexSnap.exists) {
+      userIndexData = userIndexSnap.data() || {};
+    } else {
+      await userIndexRef.set({ uid, createdAt: FieldValue.serverTimestamp() }, { merge: true });
+    }
+  } catch (e) {
+    console.error("[travel-agent GET] Failed to fetch/create userIndex", e);
+  }
+
+  const recentSearches = Array.isArray(userIndexData.recentSearches)
+    ? (userIndexData.recentSearches as string[]).filter((v): v is string => typeof v === "string")
+    : [];
+  const tags = Array.isArray(userIndexData.tags)
+    ? (userIndexData.tags as string[]).filter((v): v is string => typeof v === "string")
+    : [];
+  const defaultLocation =
+    (typeof userIndexData.defaultLocation === "string" && userIndexData.defaultLocation.trim()) ||
+    (typeof userIndexData.defaultAddress === "string" && userIndexData.defaultAddress.trim()) ||
+    "";
+
+  const existingMessage =
+    typeof userIndexData.welcomeReply === "string" ? userIndexData.welcomeReply.trim() : "";
+
+  if (existingMessage) {
+    return Response.json({
+      title: FALLBACK_TITLE,
+      message: existingMessage,
+      userName: firstName,
+      tags,
+      needsInitialization: !defaultLocation,
+      defaultLocation,
+    });
+  }
+
   let history: Array<{ destination: string }> = [];
   try {
     const snap = await adminDb
@@ -70,102 +127,41 @@ export async function GET(req: NextRequest) {
       .orderBy("timestamp", "desc")
       .limit(5)
       .get();
-      
-    history = snap.docs.map(d => ({ destination: d.data().destination as string }));
-  } catch (e) {
-    // silent
-  }
-  
-  // â”€â”€ 2. Fetch User Index â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const userIndexRef = adminDb.collection("userIndex").doc(uid);
-  let userIndexData: any = {};
-  try {
-    const userIndexSnap = await userIndexRef.get();
-    if (userIndexSnap.exists) {
-      userIndexData = userIndexSnap.data() || {};
-    } else {
-      // INITIALIZE COLLECTION IF MISSING
-      await userIndexRef.set({ uid, createdAt: FieldValue.serverTimestamp() }, { merge: true });
-    }
-  } catch (e) {
-    console.error("[Concierge GET] Failed to fetch/create userIndex", e);
+
+    history = snap.docs.map((d) => ({ destination: d.data().destination as string }));
+  } catch {
+    // non-fatal: missing history should not block message generation
   }
 
-  const recentSearches: string[] = userIndexData.recentSearches || [];
-  const defaultLocation = userIndexData.defaultLocation || userIndexData.defaultAddress || "";
+  const cities = [...new Set([...history.map((h) => h.destination), ...recentSearches])]
+    .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+    .slice(0, 8);
 
-  // â”€â”€ FIRST LOAD EXPERIENCE: Require Location â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  if (!defaultLocation) {
-    return Response.json({ 
-      title: "What will be your next story?",
-      message: `Welcome, ${firstName || "Traveler"}. To begin your journey and receive your personalized concierge experience, please set your default location.`, 
-      userName: firstName,
-      needsInitialization: true, // Tell frontend to show ONLY the "Set Default Address" button
-      tags: []
-    });
-  }
-
-  const weatherContext = await fetchWeather(defaultLocation);
-
-  const cities = [...new Set([...history.map(h => h.destination), ...recentSearches])].filter(Boolean);
-
-  // â”€â”€ 3. Prompt for the Concierge Welcome Message â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const prompt = `You are an exclusive, highly attentive travel concierge. 
-The user named ${firstName || "Traveler"} is currently located at: ${defaultLocation}.
-Current real-time weather there: ${weatherContext}.
-They have recently explored or searched for: ${cities.length > 0 ? cities.join(", ") : "various places"}.
-
-Write a personalized welcome message of around 50 words. 
-Style: Concierge, elegant, honest, and inspiring.
-Acknowledge their current location. Mention the weather and give an educated guess on the current Air Quality Index (AQI) (e.g. "Crisp, clear air" or "A bit hazy today") based on the city and weather.
-Include the exact phrase: "What will be your next story?" either at the beginning or the end.
-Output ONLY the message text without quotes or labels.`;
-
-  let message = "What will be your next story? The world is full of untold chapters waiting for you.";
-  let generatedTags: string[] = [];
-
-  if (ai) {
-    try {
-      const result = await ai.models.generateContent({
-        model: "gemini-3.1-flash-lite",
-        contents: prompt,
-      });
-      message = (result.text ?? "").trim().replace(/^["']|["']$/g, "");
-      
-      // Generate user AI tags profile
-      const tagPrompt = `Based on a traveler living in ${defaultLocation} and interested in: ${cities.join(", ") || "world travel"}, generate 3 to 5 single-word travel style tags (e.g., Urban, Nature, Historic). Output ONLY a valid JSON array of strings.`;
-      const tagResult = await ai.models.generateContent({
-         model: "gemini-3.1-flash-lite",
-         contents: tagPrompt,
-      });
-      
-      try {
-         const parsed = extractJSON(tagResult.text ?? "") as string[];
-         if (Array.isArray(parsed)) generatedTags = parsed;
-      } catch (e) {
-         console.error("[Concierge GET] Tag extraction failed");
-      }
-    } catch (err) {
-      console.error("[Concierge GET] AI Generation failed", err);
-    }
-  }
-
-  // â”€â”€ 4. Save RAG Context to userIndex â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const ragContext = `User ${firstName || "Traveler"} prefers ${generatedTags.join(", ")}. Visited/Searched: ${cities.join(", ")}. Base Location: ${defaultLocation}.`;
+  const message = await generateWelcomeMessage({
+    firstName,
+    defaultLocation,
+    cities,
+  });
 
   try {
     await userIndexRef.set({
       uid,
-      tags: generatedTags.length > 0 ? generatedTags : (userIndexData.tags || []),
       welcomeReply: message,
-      ragContext,
+      tags,
       updatedAt: FieldValue.serverTimestamp()
     }, { merge: true });
   } catch (e) {
-    console.error("[Concierge GET] Failed to update userIndex", e);
+    console.error("[travel-agent GET] Failed to update userIndex", e);
   }
 
-  return Response.json({ title: "What will be your next story?", message, userName: firstName, tags: generatedTags, needsInitialization: false, defaultLocation });
+  return Response.json({
+    title: FALLBACK_TITLE,
+    message,
+    userName: firstName,
+    tags,
+    needsInitialization: !defaultLocation,
+    defaultLocation,
+  });
 }
 
 // POST /api/home-welcome
@@ -198,7 +194,10 @@ export async function POST(req: NextRequest) {
       const snap = await t.get(userIndexRef);
       const data = snap.exists ? snap.data() || {} : {};
       const updates: any = { uid, updatedAt: FieldValue.serverTimestamp() };
-      if (defaultLocation) updates.defaultLocation = defaultLocation;
+      if (defaultLocation) {
+        updates.defaultLocation = defaultLocation;
+        updates.welcomeReply = FieldValue.delete(); // force message regeneration with new location
+      }
       if (defaultAddress) updates.defaultAddress = defaultAddress;
       if (searchedCity) {
         updates.recentSearches = [searchedCity, ...(data.recentSearches || []).filter((c: string) => c.toLowerCase() !== searchedCity.toLowerCase())].slice(0, 5);

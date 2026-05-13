@@ -13,7 +13,7 @@ import { useRouter, usePathname } from "next/navigation";
 const LS_THEME = "rc-app-theme";
 type Theme = "dark" | "light";
 const ORIGIN = "calc(100% - 35px) 35px";
-const SF = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif";
+
 
 // ── Motion ────────────────────────────────────────────────────────────────────
 const ease = [0.22, 1, 0.36, 1] as [number, number, number, number];
@@ -180,7 +180,7 @@ export function UserBubble() {
             ? "0 0 0 2px rgba(255,255,255,0.20)"
             : "0 2px 14px rgba(0,0,0,0.30), 0 0 0 1.5px rgba(255,255,255,0.10)",
           WebkitTapHighlightColor: "transparent",
-          fontFamily: SF, fontSize: 15, fontWeight: 600, color: "#fff",
+          fontSize: 15, fontWeight: 600, color: "#fff",
           display: "flex", alignItems: "center", justifyContent: "center",
         }}
       >
@@ -229,7 +229,7 @@ export function UserBubble() {
               background: overlayBg,
               backdropFilter: "blur(56px) saturate(180%)",
               WebkitBackdropFilter: "blur(56px) saturate(180%)",
-              overflowY: "auto", fontFamily: SF,
+              overflowY: "auto",
             }}
           >
             <motion.div
@@ -340,7 +340,7 @@ export function UserBubble() {
                         width: "100%", display: "flex", alignItems: "center", gap: 14,
                         padding: "16px 18px", borderRadius: 18,
                         border: `1px solid ${divider}`, background: rowBg,
-                        cursor: "pointer", color: textPrimary, fontFamily: SF,
+                        cursor: "pointer", color: textPrimary,
                         fontSize: 16, fontWeight: 500, letterSpacing: "-0.01em",
                         textAlign: "left", outline: "none",
                         WebkitTapHighlightColor: "transparent",
@@ -365,7 +365,7 @@ export function UserBubble() {
                         padding: "16px 18px", borderRadius: 18,
                         border: `1px solid ${isDark ? "rgba(255,67,58,0.15)" : "rgba(255,59,48,0.12)"}`,
                         background: isDark ? "rgba(255,67,58,0.06)" : "rgba(255,59,48,0.04)",
-                        cursor: "pointer", color: textDanger, fontFamily: SF,
+                        cursor: "pointer", color: textDanger,
                         fontSize: 16, fontWeight: 500, letterSpacing: "-0.01em",
                         textAlign: "left", outline: "none",
                         WebkitTapHighlightColor: "transparent",
@@ -393,7 +393,6 @@ export function UserBubble() {
                         : "linear-gradient(135deg, #1d1d1f 0%, #3a3a3c 100%)",
                       cursor: "pointer",
                       color: isDark ? "#1d1d1f" : "#f5f5f7",
-                      fontFamily: SF,
                       fontSize: 16, fontWeight: 600, letterSpacing: "-0.02em",
                       outline: "none",
                       WebkitTapHighlightColor: "transparent",

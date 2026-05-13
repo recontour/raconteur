@@ -6,8 +6,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/lib/firebase";
 import CityTile, { type CityData } from "@/components/welcome/CityTile";
 
-const SF =
-  "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif";
 const ease = [0.22, 1, 0.36, 1] as [number, number, number, number];
 
 const DOT_TEXTURE = {
@@ -518,11 +516,13 @@ export default function TravelPage() {
   // ── Loading skeleton ───────────────────────────────────────────────────────
   if (!ready) {
     return (
-      <div className="h-dvh bg-white flex flex-col px-5 pt-14 pb-10 gap-3" style={{ fontFamily: SF }}>
-        <Shimmer className="h-16 rounded-3xl" />
-        <Shimmer className="h-14 rounded-2xl" />
-        <Shimmer className="h-36 rounded-3xl" />
-        <Shimmer className="h-36 rounded-3xl" />
+      <div className="h-dvh bg-white flex flex-col items-center pt-14 pb-10">
+        <div className="w-full max-w-sm px-6 flex flex-col gap-3">
+          <Shimmer className="h-16 rounded-3xl" />
+          <Shimmer className="h-14 rounded-2xl" />
+          <Shimmer className="h-36 rounded-3xl" />
+          <Shimmer className="h-36 rounded-3xl" />
+        </div>
       </div>
     );
   }
@@ -530,7 +530,7 @@ export default function TravelPage() {
   const chatWeather = chatCity ? cityWeatherMap[chatCity] : undefined;
 
   return (
-    <div className="h-dvh bg-white flex flex-col overflow-hidden" style={{ fontFamily: SF }}>
+    <div className="h-dvh bg-white flex flex-col items-center overflow-hidden">
       <AnimatePresence mode="wait">
 
         {/* ══ BROWSE MODE ═══════════════════════════════════════════════════ */}
@@ -541,7 +541,7 @@ export default function TravelPage() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0, scale: 0.98 }}
           transition={{ duration: 0.28, ease }}
-          className="flex-1 overflow-y-auto px-5 pt-14 pb-10 flex flex-col gap-3"
+          className="flex-1 overflow-y-auto w-full max-w-sm px-6 pt-14 pb-10 flex flex-col gap-3"
         >
 
         {/* ── AI Welcome message ────────────────────────────────────────────── */}
@@ -615,7 +615,6 @@ export default function TravelPage() {
               }}
               placeholder="Search a destination…"
               className="flex-1 bg-transparent text-[15px] text-[#1d1d1f] placeholder-gray-400 outline-none"
-              style={{ fontFamily: SF }}
             />
             {destQuery.length > 0 && (
               <button
@@ -795,7 +794,7 @@ export default function TravelPage() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 12 }}
             transition={{ duration: 0.35, ease }}
-            className="flex-1 flex flex-col overflow-hidden"
+            className="flex-1 flex flex-col overflow-hidden w-full max-w-sm"
           >
             {/* City header */}
             <div className="relative bg-[#1d1d1f] px-5 pt-12 pb-4 flex-shrink-0 overflow-hidden">

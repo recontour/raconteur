@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import CityTile, { type CityData } from "@/components/welcome/CityTile";
 import HomeTile from "@/components/welcome/HomeTile";
 
-const SF = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif";
 const ease = [0.22, 1, 0.36, 1] as [number, number, number, number];
 
 interface Suggestion {
@@ -322,7 +321,7 @@ export default function TravelSearch({ user }: { user: User | null }) {
                   onChange={(e) => { setDestQuery(e.target.value); setSelectedPlace(null); setResorts([]); }}
                   placeholder="Search a destination…"
                   className="flex-1 bg-transparent text-[15px] text-[#1d1d1f] placeholder-gray-400 outline-none"
-                  style={{ fontFamily: SF }}
+    
                 />
                 {destQuery.length > 0 && (
                   <button onClick={clearSearch} className="shrink-0 text-gray-400 active:text-gray-600">

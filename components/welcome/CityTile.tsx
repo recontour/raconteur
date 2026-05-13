@@ -24,7 +24,7 @@ export interface CityData {
 
 interface CityTileProps {
   data: CityData | null;
-  locState: "idle" | "loading" | "done" | "denied";
+  locState: "idle" | "loading" | "done" | "denied" | "error";
   onRequestLocation: () => void;
 }
 
@@ -48,8 +48,8 @@ export default function CityTile({ data, locState, onRequestLocation }: CityTile
       transition={{ duration: 0.45, delay: 0.22, ease }}
       onClick={canRequest ? onRequestLocation : undefined}
       className={`
-        relative w-full h-36 rounded-[28px] overflow-hidden bg-[#1d1d1f]
-        flex items-center px-5 gap-5
+        relative w-full h-28 rounded-3xl overflow-hidden bg-[#1d1d1f]
+        flex items-center px-4 gap-4
         ${canRequest ? "cursor-pointer active:scale-[0.98] transition-transform" : ""}
       `}
     >
@@ -60,48 +60,40 @@ export default function CityTile({ data, locState, onRequestLocation }: CityTile
         /* ── DATA STATE ──────────────────────────────────────────────────── */
         <>
           {/* AQI ring */}
-          <div className="relative z-10 flex flex-col items-center gap-1.5 shrink-0">
-            <div className="relative w-17.5 h-17.5">
-              <svg width="70" height="70" viewBox="0 0 70 70">
-                {/* faded track */}
+          <div className="relative z-10 flex flex-col items-center gap-1 shrink-0">
+            <div className="relative w-14 h-14">
+              <svg width="56" height="56" viewBox="0 0 56 56">
                 <circle
-                  cx="35" cy="35" r={R}
+                  cx="28" cy="28" r="22"
                   fill="none"
                   stroke={meta.color}
-                  strokeWidth="6"
+                  strokeWidth="5"
                   opacity={0.18}
                 />
-                {/* progress arc — draws in on mount */}
                 <motion.circle
-                  cx="35" cy="35" r={R}
+                  cx="28" cy="28" r="22"
                   fill="none"
                   stroke={meta.color}
-                  strokeWidth="6"
+                  strokeWidth="5"
                   strokeLinecap="round"
-                  strokeDasharray={CIRC}
-                  transform="rotate(-90 35 35)"
-                  initial={{ strokeDashoffset: CIRC }}
+                  strokeDasharray={2 * Math.PI * 22}
+                  transform="rotate(-90 28 28)"
+                  initial={{ strokeDashoffset: 2 * Math.PI * 22 }}
                   animate={{ strokeDashoffset: 0 }}
                   transition={{ duration: 1.4, ease }}
                 />
               </svg>
-
-              {/* Label inside ring */}
               <div className="absolute inset-0 flex items-center justify-center">
-                <p
-                  className="text-[10px] font-bold leading-none tracking-tight"
-                  style={{ color: meta.color }}
-                >
+                <p className="text-[9px] font-bold leading-none tracking-tight" style={{ color: meta.color }}>
                   {meta.label}
                 </p>
               </div>
             </div>
-
             <p className="text-[9px] uppercase tracking-[0.14em] text-white/30">Air Quality</p>
           </div>
 
           {/* Divider */}
-          <div className="w-px h-14 bg-white/10 shrink-0" />
+          <div className="w-px h-10 bg-white/10 shrink-0" />
 
           {/* Weather */}
           <div className="relative z-10 flex-1 flex flex-col justify-center gap-0.5">
@@ -113,11 +105,11 @@ export default function CityTile({ data, locState, onRequestLocation }: CityTile
               <img
                 src={`https://openweathermap.org/img/wn/${data.icon}@2x.png`}
                 alt={data.description}
-                width={48}
-                height={48}
-                className="-ml-2 -my-2 shrink-0"
+                width={36}
+                height={36}
+                className="-ml-1.5 -my-1 shrink-0 w-9 h-9"
               />
-              <span className="text-[36px] font-semibold text-white leading-none tracking-tight">
+              <span className="text-[28px] font-semibold text-white leading-none tracking-tight">
                 {data.temp}°
               </span>
             </div>
@@ -137,6 +129,12 @@ export default function CityTile({ data, locState, onRequestLocation }: CityTile
                 <circle cx="12" cy="12" r="10" />
                 <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
               </svg>
+            ) : locState === "error" ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
             ) : (
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M17.657 16.657 13.414 20.9a1.998 1.998 0 0 1-2.827 0l-4.244-4.243a8 8 0 1 1 11.314 0z" />
@@ -151,11 +149,15 @@ export default function CityTile({ data, locState, onRequestLocation }: CityTile
                 ? "Getting weather…"
                 : locState === "denied"
                 ? "Location access denied"
+                : locState === "error"
+                ? "Couldn\u2019t get location"
                 : "Local weather & air quality"}
             </p>
             <p className="text-[11px] text-white/40 mt-0.5">
               {locState === "denied"
                 ? "Enable location in Settings and retry"
+                : locState === "error"
+                ? "Tap to try again"
                 : locState === "loading"
                 ? "Checking conditions near you"
                 : "Tap to see conditions near you"}

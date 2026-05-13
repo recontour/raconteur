@@ -302,7 +302,6 @@ export default function OnboardingFlow() {
   return (
     <div
       className="h-dvh bg-white text-[#1d1d1f] flex flex-col overflow-hidden relative"
-      style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" }}
     >
       {renderProgress()}
 

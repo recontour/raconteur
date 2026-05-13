@@ -124,7 +124,7 @@ export default function GatePage() {
   const keyTap = isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.13)";
   const border = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)";
   const labelColor = isDark ? "rgba(255,255,255,0.36)" : "rgba(0,0,0,0.36)";
-  const SF = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif";
+
 
   if (!mounted) return null;
 
@@ -136,7 +136,7 @@ export default function GatePage() {
     >
       {/* PC-width guard — mirrors invite page constraint */}
       <div
-        style={{ color: fg, fontFamily: SF, WebkitFontSmoothing: "antialiased" as React.CSSProperties["WebkitFontSmoothing"] }}
+        style={{ color: fg }}
         className="relative flex flex-col w-full max-w-97.5 h-dvh overflow-hidden"
       >
 
@@ -303,7 +303,6 @@ export default function GatePage() {
                               userSelect: "none",
                               WebkitTapHighlightColor: "transparent",
                               flexShrink: 0,
-                              fontFamily: SF,
                             }}
                           >
                             {isBS ? <BackspaceIcon /> : key}
