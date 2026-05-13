@@ -5,28 +5,17 @@ import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { motion, AnimatePresence } from "framer-motion";
 import CityTile, { type CityData } from "@/components/welcome/CityTile";
-
-const ease = [0.22, 1, 0.36, 1] as [number, number, number, number];
+import ReelStrip from "@/components/welcome/ReelStrip";
+import { LocationPickerSheet, type PlaceEntry } from "@/components/welcome/LocationPickerSheet";
+import { ease } from "@/lib/tokens";
+import { Shimmer } from "@/components/ui/Shimmer";
+import ReportCard from "@/components/welcome/ReportCard";
 
 type LocationState = "idle" | "loading" | "done" | "denied" | "error";
 
 interface TravelAgentGetResponse {
   message?: string;
   defaultLocation?: string;
-}
-
-interface NewsItem {
-  title: string;
-  snippet?: string;
-  source?: string;
-  link?: string;
-  thumbnail?: string;
-  date?: string;
-}
-
-interface ActivityItem {
-  label: string;
-  emoji: string;
 }
 
 interface DayTripPlace {
@@ -78,8 +67,9 @@ type PlanMode = null | "day-trip" | "vacation";
 
 interface LocalBrief {
   city: string;
-  news: NewsItem[];
-  activities: ActivityItem[];
+  paragraphs: string[];
+  images: string[];
+  links: { title: string; url?: string; source?: string }[];
 }
 
 export default function WelcomePage() {
@@ -95,6 +85,10 @@ export default function WelcomePage() {
 
   const [localBrief, setLocalBrief] = useState<LocalBrief | null>(null);
   const [briefLoading, setBriefLoading] = useState(false);
+
+  // Location picker
+  const [locationPickerOpen, setLocationPickerOpen] = useState(false);
+  const [savedPlaces, setSavedPlaces] = useState<Record<string, PlaceEntry>>({});
 
   // Plan modes
   const [planMode, setPlanMode] = useState<PlanMode>(null);
@@ -113,6 +107,7 @@ export default function WelcomePage() {
   const vacDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const hasFetchedTileRef = useRef(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const fetchLocalBrief = useCallback(async (city: string, token: string) => {
     setBriefLoading(true);
@@ -126,6 +121,62 @@ export default function WelcomePage() {
     } catch { /* non-fatal */ }
     finally { setBriefLoading(false); }
   }, []);
+
+  const loadSavedPlaces = useCallback(async (token: string) => {
+    try {
+      const res = await fetch("/api/users/places", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { places: Record<string, PlaceEntry> };
+        setSavedPlaces(data.places ?? {});
+      }
+    } catch { /* non-fatal */ }
+  }, []);
+
+  const handleLocationSelect = useCallback(async (cityName: string) => {
+    if (!user) return;
+    setLocState("loading");
+    setCityData(null);
+    setLocalBrief(null);
+    try {
+      const token = await user.getIdToken();
+      const [cityRes] = await Promise.all([
+        fetch("/api/city", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ city: cityName }),
+        }),
+        fetch("/api/users/places", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ name: cityName }),
+        }).then(async (r) => {
+          if (r.ok) {
+            const d = (await r.json()) as { places: Record<string, PlaceEntry> };
+            setSavedPlaces(d.places ?? {});
+          }
+        }),
+      ]);
+
+      if (!cityRes.ok) { setLocState("error"); return; }
+      const cityPayload = (await cityRes.json()) as CityData;
+      setDefaultLocation(cityName);
+      setCityData(cityPayload);
+      setLocState("done");
+
+      // Persist as travel-agent defaultLocation so next load picks it up
+      fetch("/api/travel-agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ defaultLocation: cityName, defaultAddress: cityName }),
+      }).catch(() => { /* non-fatal */ });
+
+      fetchLocalBrief(cityName, token);
+    } catch {
+      setLocState("error");
+    }
+  }, [user, fetchLocalBrief]);
 
   const handleDayTrip = async () => {
     if (!user || !defaultLocation) return;
@@ -234,14 +285,17 @@ export default function WelcomePage() {
           hasFetchedTileRef.current = true;
           setLocState("loading");
 
-          const cityRes = await fetch("/api/city", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ city: location }),
-          });
+          const [cityRes] = await Promise.all([
+            fetch("/api/city", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ city: location }),
+            }),
+            loadSavedPlaces(token),
+          ]);
 
           if (cityRes.ok) {
             const cityPayload = (await cityRes.json()) as CityData;
@@ -251,6 +305,9 @@ export default function WelcomePage() {
           } else {
             setLocState("idle");
           }
+        } else {
+          // No default location yet — still load saved places
+          loadSavedPlaces(token);
         }
       } catch {
         setWelcomeMessage("What will be your next story? Discover the world's best destinations.");
@@ -261,7 +318,7 @@ export default function WelcomePage() {
     };
 
     run();
-  }, [bootReady, user]);
+  }, [bootReady, user, fetchLocalBrief, loadSavedPlaces]);
 
   const requestCurrentLocation = async () => {
     if (!user || !navigator.geolocation || locState === "loading") return;
@@ -334,12 +391,10 @@ export default function WelcomePage() {
   if (!bootReady || !messageReady) {
     return (
       <div className="h-dvh bg-white flex flex-col items-center overflow-hidden">
-        <div className="w-full max-w-sm px-6 pt-14 pb-10">
-          <motion.div
-            className="bg-gray-100 rounded-3xl h-28"
-            animate={{ opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
-          />
+        <div className="w-full max-w-sm px-6 pt-14 pb-10 flex flex-col gap-3">
+          <Shimmer className="h-28 rounded-xl" />
+          <Shimmer className="h-14 rounded-xl" />
+          <Shimmer className="h-40 rounded-xl" />
         </div>
       </div>
     );
@@ -352,7 +407,11 @@ export default function WelcomePage() {
       transition={{ duration: 0.35 }}
       className="h-dvh bg-white text-[#1d1d1f] flex flex-col items-center overflow-hidden"
     >
-      <div className="flex-1 overflow-y-auto w-full max-w-sm px-6 pt-14 pb-10 space-y-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto w-full max-w-sm">
+        {/* ── Reels strip (hidden in plan mode) ────────────────────────── */}
+        {!planMode && <ReelStrip scrollRef={scrollRef} />}
+
+        <div className="relative z-10 px-6 pt-6 pb-10 space-y-4 rounded-t-3xl bg-white/90 backdrop-blur-md shadow-[0_-8px_32px_rgba(0,0,0,0.06)]">
         <AnimatePresence>
           {!localBrief && (
             <motion.section
@@ -360,7 +419,7 @@ export default function WelcomePage() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.45, ease }}
-              className="rounded-3xl bg-[#1d1d1f] p-6"
+              className="rounded-xl bg-[#1d1d1f] p-6"
             >
               <p className="text-white text-[17px] leading-relaxed">{welcomeMessage}</p>
             </motion.section>
@@ -372,14 +431,19 @@ export default function WelcomePage() {
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, ease, delay: 0.08 }}
-            className="text-xs uppercase tracking-widest text-gray-400"
+            className="text-[10px] font-medium uppercase tracking-widest text-gray-400"
           >
             Select current location to load city weather and AQI
           </motion.p>
         )}
 
         {!user ? null : (
-          <CityTile data={cityData} locState={locState} onRequestLocation={requestCurrentLocation} />
+          <CityTile
+            data={cityData}
+            locState={locState}
+            onRequestLocation={requestCurrentLocation}
+            onChangeLocation={() => setLocationPickerOpen(true)}
+          />
         )}
 
         {/* ── Plan buttons ─────────────────────────────────────────────── */}
@@ -392,7 +456,7 @@ export default function WelcomePage() {
           >
             <button
               onClick={handleDayTrip}
-              className="flex-1 flex flex-col gap-1 items-start px-4 py-4 rounded-2xl bg-[#1d1d1f] text-white active:scale-[0.97] transition-transform"
+              className="flex-1 flex flex-col gap-1 items-start px-4 py-4 rounded-xl bg-[#1d1d1f] text-white active:scale-[0.97] transition-transform"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="mb-0.5 opacity-70">
                 <circle cx="12" cy="12" r="10" />
@@ -403,7 +467,7 @@ export default function WelcomePage() {
             </button>
             <button
               onClick={() => setPlanMode("vacation")}
-              className="flex-1 flex flex-col gap-1 items-start px-4 py-4 rounded-2xl bg-gray-100 text-[#1d1d1f] active:scale-[0.97] transition-transform"
+              className="flex-1 flex flex-col gap-1 items-start px-4 py-4 rounded-xl bg-gray-100 text-[#1d1d1f] active:scale-[0.97] transition-transform"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1d1d1f" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="mb-0.5 opacity-40">
                 <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.78a16 16 0 0 0 5.55 5.55l1.67-1.85a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.09z" />
@@ -442,7 +506,7 @@ export default function WelcomePage() {
                 {[0, 1, 2].map((i) => (
                   <motion.div
                     key={i}
-                    className="h-18 rounded-2xl bg-gray-100"
+                    className="h-18 rounded-xl bg-gray-100"
                     animate={{ opacity: [0.5, 1, 0.5] }}
                     transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut", delay: i * 0.12 }}
                   />
@@ -467,7 +531,7 @@ export default function WelcomePage() {
                           initial={{ opacity: 0, y: 6 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.28, delay: i * 0.06, ease }}
-                          className="flex gap-3 bg-gray-50 rounded-2xl p-3 active:scale-[0.98] transition-transform"
+                          className="flex gap-3 bg-gray-50 rounded-xl p-3 active:scale-[0.98] transition-transform"
                         >
                           {p.thumbnail ? (
                             // eslint-disable-next-line @next/next/no-img-element
@@ -513,7 +577,7 @@ export default function WelcomePage() {
                           initial={{ opacity: 0, y: 6 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.28, delay: 0.1 + i * 0.06, ease }}
-                          className="flex gap-3 bg-gray-50 rounded-2xl p-3 active:scale-[0.98] transition-transform"
+                          className="flex gap-3 bg-gray-50 rounded-xl p-3 active:scale-[0.98] transition-transform"
                         >
                           {ev.thumbnail ? (
                             // eslint-disable-next-line @next/next/no-img-element
@@ -556,7 +620,7 @@ export default function WelcomePage() {
           >
             {/* Search input */}
             <div className="relative">
-              <div className="flex items-center gap-3 rounded-2xl px-4 py-3.5 bg-gray-50">
+              <div className="flex items-center gap-3 rounded-xl px-4 py-3.5 bg-gray-50">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
                   <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>
@@ -586,7 +650,7 @@ export default function WelcomePage() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -4 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50"
+                    className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50"
                   >
                     {vacSuggestions.map((s, i) => (
                       <button key={i} onMouseDown={() => handleVacationSelect(s)}
@@ -609,7 +673,7 @@ export default function WelcomePage() {
             {vacLoading && (
               <div className="flex flex-col gap-2.5 mt-1">
                 {[0, 1, 2].map((i) => (
-                  <motion.div key={i} className="h-18 rounded-2xl bg-gray-100"
+                  <motion.div key={i} className="h-18 rounded-xl bg-gray-100"
                     animate={{ opacity: [0.5, 1, 0.5] }}
                     transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut", delay: i * 0.12 }} />
                 ))}
@@ -627,7 +691,7 @@ export default function WelcomePage() {
                     <motion.a key={i} href={r.link ?? "#"} target={r.link ? "_blank" : undefined} rel="noopener noreferrer"
                       initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.28, delay: i * 0.07, ease }}
-                      className="flex gap-3 bg-gray-50 rounded-2xl p-3 active:scale-[0.98] transition-transform"
+                      className="flex gap-3 bg-gray-50 rounded-xl p-3 active:scale-[0.98] transition-transform"
                     >
                       {r.thumbnail ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -663,65 +727,25 @@ export default function WelcomePage() {
           </motion.div>
         )}
 
-        {/* ── News brief (hidden in plan mode) ─────────────────────────── */}
+        {/* ── Report card (hidden in plan mode) ────────────────────────── */}
         {!planMode && locState === "done" && (briefLoading || localBrief) && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, ease, delay: 0.05 }}
-            className="flex flex-col gap-3"
-          >
-            <p className="text-[10px] uppercase tracking-widest text-gray-400">
-              Travel Brief · {localBrief?.city ?? defaultLocation}
-            </p>
-
-            {briefLoading && !localBrief ? (
-              <div className="flex flex-col gap-2.5">
-                {[0, 1].map((i) => (
-                  <motion.div key={i} className="h-18 rounded-2xl bg-gray-100"
-                    animate={{ opacity: [0.5, 1, 0.5] }}
-                    transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut", delay: i * 0.15 }} />
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2.5">
-                {localBrief?.news.map((item, i) => (
-                  <motion.a key={i} href={item.link ?? "#"} target={item.link ? "_blank" : undefined}
-                    rel="noopener noreferrer"
-                    initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: i * 0.07, ease }}
-                    className="flex gap-3 bg-gray-50 rounded-2xl p-3 active:scale-[0.98] transition-transform"
-                  >
-                    {item.thumbnail ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={item.thumbnail} alt="" width={56} height={56}
-                        className="w-14 h-14 rounded-xl object-cover shrink-0 bg-gray-200" />
-                    ) : (
-                        <div className="w-14 h-14 rounded-xl bg-gray-100 shrink-0 flex items-center justify-center">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                          <polyline points="9 22 9 12 15 12 15 22" />
-                        </svg>
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
-                      <p className="text-[13px] font-semibold text-[#1d1d1f] leading-snug line-clamp-2">{item.title}</p>
-                      {item.snippet && (
-                        <p className="text-[11px] text-gray-400 leading-snug line-clamp-2">{item.snippet}</p>
-                      )}
-                      <div className="flex items-center gap-1.5">
-                        {item.source && <span className="text-[10px] text-gray-300 font-medium truncate">{item.source}</span>}
-                        {item.source && item.date && <span className="text-[10px] text-gray-200">·</span>}
-                        {item.date && <span className="text-[10px] text-gray-300 truncate">{item.date}</span>}
-                      </div>
-                    </div>
-                  </motion.a>
-                ))}
-              </div>
-            )}
-          </motion.div>
+          <ReportCard
+            city={localBrief?.city}
+            paragraphs={localBrief?.paragraphs ?? []}
+            images={localBrief?.images ?? []}
+            loading={briefLoading && !localBrief}
+          />
         )}
+        </div>
       </div>
+
+      {/* Location picker sheet */}
+      <LocationPickerSheet
+        open={locationPickerOpen}
+        onClose={() => setLocationPickerOpen(false)}
+        savedPlaces={savedPlaces}
+        onSelect={handleLocationSelect}
+      />
     </motion.div>
   );
 }

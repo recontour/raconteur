@@ -1,8 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-
-const ease = [0.22, 1, 0.36, 1] as [number, number, number, number];
+import { ease } from "@/lib/tokens";
 
 // OWM air pollution index: 1 = Good … 5 = Very Poor
 const AQI_META: Record<number, { label: string; color: string }> = {
@@ -26,18 +25,14 @@ interface CityTileProps {
   data: CityData | null;
   locState: "idle" | "loading" | "done" | "denied" | "error";
   onRequestLocation: () => void;
+  onChangeLocation?: () => void;
 }
 
 // AQI ring dimensions
 const R = 26;
 const CIRC = 2 * Math.PI * R; // ≈ 163.4
 
-const DOT_TEXTURE = {
-  backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)",
-  backgroundSize: "20px 20px",
-};
-
-export default function CityTile({ data, locState, onRequestLocation }: CityTileProps) {
+export default function CityTile({ data, locState, onRequestLocation, onChangeLocation }: CityTileProps) {
   const meta = data ? (AQI_META[data.aqi] ?? AQI_META[3]) : null;
   const canRequest = !data && locState !== "loading" && locState !== "denied";
 
@@ -48,13 +43,23 @@ export default function CityTile({ data, locState, onRequestLocation }: CityTile
       transition={{ duration: 0.45, delay: 0.22, ease }}
       onClick={canRequest ? onRequestLocation : undefined}
       className={`
-        relative w-full h-28 rounded-3xl overflow-hidden bg-[#1d1d1f]
-        flex items-center px-4 gap-4
+        relative w-full h-28 rounded-xl overflow-hidden bg-[#1d1d1f]
+        flex items-center px-6 gap-5
         ${canRequest ? "cursor-pointer active:scale-[0.98] transition-transform" : ""}
       `}
     >
-      {/* Dot-grid texture */}
-      <div className="absolute inset-0 opacity-[0.06]" style={DOT_TEXTURE} />
+      {/* Change location button — shown in empty/loading/denied states */}
+      {onChangeLocation && !data && locState !== "loading" && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onChangeLocation(); }}
+          className="absolute top-3 right-3 z-20 flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/10 active:scale-95 transition-all"
+        >
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="opacity-60">
+            <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+          </svg>
+          <span className="text-[10px] font-medium text-white/60 leading-none">Change</span>
+        </button>
+      )}
 
       {data && meta ? (
         /* ── DATA STATE ──────────────────────────────────────────────────── */
@@ -96,11 +101,11 @@ export default function CityTile({ data, locState, onRequestLocation }: CityTile
           <div className="w-px h-10 bg-white/10 shrink-0" />
 
           {/* Weather */}
-          <div className="relative z-10 flex-1 flex flex-col justify-center gap-0.5">
-            <p className="text-[10px] uppercase tracking-[0.12em] text-white/35 mb-0.5">
+          <div className="relative z-10 flex-1 flex flex-col items-center justify-center gap-0.5">
+            <p className="text-[10px] uppercase tracking-[0.12em] text-white/35 mb-0.5 text-center">
               {data.city}
             </p>
-            <div className="flex items-center gap-0.5">
+            <div className="flex items-center gap-0.5 justify-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={`https://openweathermap.org/img/wn/${data.icon}@2x.png`}
@@ -113,10 +118,28 @@ export default function CityTile({ data, locState, onRequestLocation }: CityTile
                 {data.temp}°
               </span>
             </div>
-            <p className="text-[12px] text-white/45">
+            <p className="text-[12px] text-white/45 text-center">
               Feels like {data.feelsLike}°C
             </p>
           </div>
+
+          {/* Divider */}
+          <div className="w-px h-10 bg-white/10 shrink-0" />
+
+          {/* Change button */}
+          {onChangeLocation && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onChangeLocation(); }}
+              className="relative z-10 flex flex-col items-center gap-1.5 shrink-0 active:scale-95 transition-transform"
+            >
+              <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-70">
+                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                </svg>
+              </div>
+              <p className="text-[9px] uppercase tracking-[0.14em] text-white/30">Change</p>
+            </button>
+          )}
         </>
       ) : (
         /* ── EMPTY / LOADING / DENIED STATE ─────────────────────────────── */
@@ -160,7 +183,7 @@ export default function CityTile({ data, locState, onRequestLocation }: CityTile
                 ? "Tap to try again"
                 : locState === "loading"
                 ? "Checking conditions near you"
-                : "Tap to see conditions near you"}
+                : "Tap to use GPS"}
             </p>
           </div>
         </div>

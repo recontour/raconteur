@@ -1,8 +1,8 @@
 import { type NextRequest } from "next/server";
-import { adminAuth } from "@/lib/firebase-admin";
+import { adminAuth, adminDb } from "@/lib/firebase-admin";
+import { FieldValue } from "firebase-admin/firestore";
 
-const CACHE_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
-const cache = new Map<string, { ts: number; data: DayTripResponse }>();
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface NominatimResult {
@@ -93,12 +93,15 @@ export async function POST(req: NextRequest) {
   const city = typeof body.city === "string" ? body.city.trim() : "";
   if (!city) return Response.json({ error: "city required" }, { status: 400 });
 
-  // ── In-memory cache ───────────────────────────────────────────────────────
-  const cacheKey = city.toLowerCase();
-  const hit = cache.get(cacheKey);
-  if (hit && Date.now() - hit.ts < CACHE_TTL_MS) {
-    return Response.json({ ...hit.data, cached: true });
-  }
+  // ── Firestore cityIndex cache ──────────────────────────────────────────
+  const cacheKey = city.toLowerCase().replace(/\s+/g, "_");
+  try {
+    const snap = await adminDb.collection("cityIndex").doc(cacheKey).get();
+    const cached = snap.data() as { city: string; places: DayTripPlace[]; events: DayTripEvent[]; fetchedAt: { toMillis: () => number } } | undefined;
+    if (cached?.fetchedAt && Date.now() - cached.fetchedAt.toMillis() < CACHE_TTL_MS) {
+      return Response.json({ city: cached.city, places: cached.places, events: cached.events, cached: true });
+    }
+  } catch { /* proceed to fresh fetch */ }
 
   const serpKey = process.env.SERPAPI_KEY;
   if (!serpKey) return Response.json({ error: "SERPAPI_KEY not configured" }, { status: 503 });
@@ -191,7 +194,24 @@ export async function POST(req: NextRequest) {
   const events = eventsRes.status === "fulfilled" ? eventsRes.value : [];
 
   const result: DayTripResponse = { city: resolvedCity, places, events };
-  cache.set(cacheKey, { ts: Date.now(), data: result });
+
+  // ── Save to Firestore cityIndex ─────────────────────────────────────
+  try {
+    const safePlaces = places.map((p) =>
+      Object.fromEntries(Object.entries(p).filter(([, v]) => v !== undefined))
+    );
+    const safeEvents = events.map((e) =>
+      Object.fromEntries(Object.entries(e).filter(([, v]) => v !== undefined))
+    );
+    await adminDb.collection("cityIndex").doc(cacheKey).set({
+      city: resolvedCity,
+      places: safePlaces,
+      events: safeEvents,
+      fetchedAt: FieldValue.serverTimestamp(),
+    });
+  } catch (err) {
+    console.warn("[day-trip] Firestore cache write failed:", err);
+  }
 
   return Response.json(result);
 }

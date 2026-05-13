@@ -3,7 +3,9 @@ import { GoogleGenAI } from "@google/genai";
 import { adminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+const apiKey = (process.env.GEMINI_API_KEY || "").trim();
+const isDummyKey = !apiKey || apiKey.includes("your_actual");
+const ai = !isDummyKey ? new GoogleGenAI({ apiKey }) : null;
 
 export async function POST(req: NextRequest) {
   try {
@@ -32,6 +34,10 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Gemini call ───────────────────────────────────────────────────────────
+    if (!ai) {
+      throw new Error("Gemini client not initialized. Check GEMINI_API_KEY.");
+    }
+
     const result = await ai.models.generateContent({
       model: "gemini-3.1-flash-lite-preview",
       contents: prompt,

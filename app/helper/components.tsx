@@ -5,9 +5,9 @@ import { AnimatePresence, motion } from "framer-motion";
 import { signOut } from "firebase/auth";
 import Avatar from "boring-avatars";
 import { useAuth } from "./auth";
-import { auth, db } from "@/lib/firebase";
-import { doc, onSnapshot } from "firebase/firestore";
+import { auth } from "@/lib/firebase";
 import { useRouter, usePathname } from "next/navigation";
+import { ease } from "@/lib/tokens";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const LS_THEME = "rc-app-theme";
@@ -16,7 +16,6 @@ const ORIGIN = "calc(100% - 35px) 35px";
 
 
 // ── Motion ────────────────────────────────────────────────────────────────────
-const ease = [0.22, 1, 0.36, 1] as [number, number, number, number];
 const stagger = {
   hidden: {},
   visible: { transition: { staggerChildren: 0.07, delayChildren: 0.24 } },

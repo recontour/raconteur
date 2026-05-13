@@ -1,42 +1,16 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/lib/firebase";
 import CityTile, { type CityData } from "@/components/welcome/CityTile";
-
-const ease = [0.22, 1, 0.36, 1] as [number, number, number, number];
-
-const DOT_TEXTURE = {
-  backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)",
-  backgroundSize: "20px 20px",
-};
+import { ease } from "@/lib/tokens";
+import { Shimmer } from "@/components/ui/Shimmer";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-interface Suggestion {
-  name: string;
-  state: string;
-  displayName: string;
-  lat: number;
-  lng: number;
-}
+type LocationState = "idle" | "loading" | "done" | "denied" | "error";
 
-interface Resort {
-  name: string;
-  description?: string;
-  link?: string;
-  price?: string;
-  rating?: number;
-  reviews?: number;
-  thumbnail?: string;
-}
-
-interface TravelLogEntry {
-  destination: string;
-  resorts: Resort[];
-  timestamp: number | null;
-}
 interface ChatOption {
   label: string;
   searchQuery: string;
@@ -54,18 +28,37 @@ type ChatMessage =
   | { id: string; type: "options"; options: ChatOption[]; picked?: string }
   | { id: string; type: "option-reply"; content: string; events: SerpEvent[] };
 
-// ── Skeleton shimmer ──────────────────────────────────────────────────────────
-function Shimmer({ className }: { className: string }) {
+// ── Activity tiles data ───────────────────────────────────────────────────────
+const ACTIVITIES = [
+  { id: "adventure",  label: "Adventure",    sub: "Go beyond the map"          },
+  { id: "romance",    label: "Romance",       sub: "Moments worth remembering"  },
+  { id: "whats-on",   label: "What's On",     sub: "Live now, near you"         },
+  { id: "food",       label: "Food & Drink",  sub: "Taste the local story"      },
+  { id: "culture",    label: "Culture",       sub: "Art, history, wonder"       },
+] as const;
+
+// ── Activity icons ────────────────────────────────────────────────────────────
+function ActivityIcon({ id }: { id: string }) {
+  const s = { width: 22, height: 22, viewBox: "0 0 24 24", fill: "none" as const, stroke: "white", strokeWidth: 1.4, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  if (id === "adventure") return (
+    <svg {...s}><path d="M3 18l5-9 4 6 3-4 6 7H3z" /><circle cx="17" cy="5" r="2" /></svg>
+  );
+  if (id === "romance") return (
+    <svg {...s}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
+  );
+  if (id === "whats-on") return (
+    <svg {...s}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
+  );
+  if (id === "food") return (
+    <svg {...s}><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2" /><line x1="7" y1="2" x2="7" y2="22" /><path d="M21 15V2a5 5 0 0 0-5 5v6h3" /><line x1="19" y1="15" x2="19" y2="22" /></svg>
+  );
+  // culture
   return (
-    <motion.div
-      className={`bg-gray-100 rounded-2xl overflow-hidden ${className}`}
-      animate={{ opacity: [0.45, 0.9, 0.45] }}
-      transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
-    />
+    <svg {...s}><line x1="2" y1="22" x2="22" y2="22" /><polyline points="4 11 12 3 20 11" /><line x1="4" y1="11" x2="4" y2="22" /><line x1="20" y1="11" x2="20" y2="22" /><rect x="9" y="15" width="6" height="7" /></svg>
   );
 }
 
-// ── Icons ───────────────────────────────────────────────────────────────────
+// ── Icons ─────────────────────────────────────────────────────────────────────
 function SparkIcon({ size = 14, color = "white" }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -97,7 +90,7 @@ function TypingBubble() {
   );
 }
 
-// ── Bot message bubble ───────────────────────────────────────────────────────
+// ── Bot bubble ────────────────────────────────────────────────────────────────
 function BotBubble({ content, delay = 0 }: { content: string; delay?: number }) {
   return (
     <motion.div
@@ -115,8 +108,12 @@ function BotBubble({ content, delay = 0 }: { content: string; delay?: number }) 
   );
 }
 
-// ── Option pills ─────────────────────────────────────────────────────────────
-function OptionPills({ options, picked, onSelect }: { options: ChatOption[]; picked?: string; onSelect: (o: ChatOption) => void; }) {
+// ── Option pills ──────────────────────────────────────────────────────────────
+function OptionPills({ options, picked, onSelect }: {
+  options: ChatOption[];
+  picked?: string;
+  onSelect: (o: ChatOption) => void;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
@@ -129,7 +126,8 @@ function OptionPills({ options, picked, onSelect }: { options: ChatOption[]; pic
         return (
           <motion.button
             key={i}
-            initial={{ opacity: 0, y: 6 }} animate={{ opacity: isDimmed ? 0.35 : 1, y: 0 }}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: isDimmed ? 0.35 : 1, y: 0 }}
             transition={{ duration: 0.28, delay: 0.22 + i * 0.09, ease }}
             whileTap={!picked ? { scale: 0.97 } : {}}
             onClick={() => !picked && onSelect(opt)}
@@ -145,7 +143,7 @@ function OptionPills({ options, picked, onSelect }: { options: ChatOption[]; pic
   );
 }
 
-// ── Event card (chat context) ─────────────────────────────────────────────────
+// ── Chat event card ───────────────────────────────────────────────────────────
 function ChatEventCard({ event, delay = 0 }: { event: SerpEvent; delay?: number }) {
   return (
     <motion.a
@@ -179,72 +177,58 @@ function ChatEventCard({ event, delay = 0 }: { event: SerpEvent; delay?: number 
   );
 }
 
-// ── Resort cards (search results) ─────────────────────────────────────────────
-function ResortCards({ resorts, label }: { resorts: Resort[]; label: string }) {
+// ── Activity tile ─────────────────────────────────────────────────────────────
+function ActivityTile({
+  activity,
+  selected,
+  onToggle,
+  delay = 0,
+}: {
+  activity: (typeof ACTIVITIES)[number];
+  selected: boolean;
+  onToggle: () => void;
+  delay?: number;
+}) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -4 }}
-      transition={{ duration: 0.25 }}
-      className="mt-3 space-y-2.5"
+    <motion.button
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.32, delay, ease }}
+      whileTap={{ scale: 0.95 }}
+      onClick={onToggle}
+      className={`relative aspect-square rounded-2xl overflow-hidden flex flex-col justify-end p-4 text-left ${
+        selected ? "ring-2 ring-white/40" : ""
+      }`}
+      style={{ background: "#1d1d1f" }}
     >
-      <p className="text-xs font-medium text-gray-400 uppercase tracking-widest">
-        Top stays in {label}
-      </p>
-      {resorts.map((r, i) => (
-        <motion.a
-          key={i}
-          href={r.link ?? "#"}
-          target="_blank"
-          rel="noopener noreferrer"
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25, delay: i * 0.06 }}
-          className="flex gap-3 bg-gray-50 rounded-2xl p-3 active:scale-[0.98] transition-transform"
-        >
-          {r.thumbnail ? (
-            <img
-              src={r.thumbnail}
-              alt={r.name}
-              className="w-16 h-16 rounded-xl object-cover shrink-0 bg-gray-200"
-            />
-          ) : (
-            <div className="w-16 h-16 rounded-xl bg-gray-200 shrink-0 flex items-center justify-center">
-              <span className="text-2xl">🏨</span>
-            </div>
-          )}
-          <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
-            <p className="text-sm font-semibold text-[#1d1d1f] leading-tight line-clamp-2">
-              {r.name}
-            </p>
-            {r.rating && (
-              <p className="text-xs text-gray-500">
-                ★ {r.rating}
-                {r.reviews ? ` · ${r.reviews.toLocaleString()} reviews` : ""}
-              </p>
-            )}
-            {r.price && (
-              <p className="text-xs text-gray-400">from {r.price} / night</p>
-            )}
-          </div>
-          <div className="shrink-0 self-center">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#9ca3af"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="9 18 15 12 9 6" />
+      {selected && <div className="absolute inset-0 bg-white/6" />}
+
+      <div className="relative z-10 h-full flex flex-col justify-between">
+        <div className="opacity-60">
+          <ActivityIcon id={activity.id} />
+        </div>
+        <div>
+          <p className="text-[15px] font-semibold text-white leading-tight tracking-tight">{activity.label}</p>
+          <p className="text-[11px] text-white/35 mt-1 leading-tight">{activity.sub}</p>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {selected && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.5 }}
+            transition={{ duration: 0.18 }}
+            className="absolute top-3 right-3 w-5 h-5 rounded-full bg-white flex items-center justify-center"
+          >
+            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+              <path d="M2 6L5 9L10 3" stroke="#1d1d1f" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-          </div>
-        </motion.a>
-      ))}
-    </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.button>
   );
 }
 
@@ -253,33 +237,20 @@ export default function TravelPage() {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
 
-  // AI message state
-  const [aiMessage, setAiMessage] = useState<string | null>(null);
-  const [aiLoading, setAiLoading] = useState(true);
+  // Location / header tile
+  const [locState, setLocState] = useState<LocationState>("idle");
+  const [cityData, setCityData] = useState<CityData | null>(null);
+  const [defaultLocation, setDefaultLocation] = useState("");
 
-  // Travel history + weather
-  const [travelHistory, setTravelHistory] = useState<TravelLogEntry[]>([]);
-  const [cityWeatherMap, setCityWeatherMap] = useState<
-    Record<string, CityData | "loading">
-  >({});
-  const [openHistoryIdx, setOpenHistoryIdx] = useState<number | null>(null);
+  // Activity selection
+  const [selectedActivities, setSelectedActivities] = useState<string[]>([]);
 
-  // Search state
-  const [destQuery, setDestQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [selectedPlace, setSelectedPlace] = useState<string | null>(null);
-  const [resorts, setResorts] = useState<Resort[]>([]);
-  const [resortLoading, setResortLoading] = useState(false);
-  const [resortError, setResortError] = useState(false);
-  const [searchFocused, setSearchFocused] = useState(false);
-
-  // City chat state
+  // City chat
   const [chatCity, setChatCity] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const hasFetchedRef = useRef(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // ── Auth ───────────────────────────────────────────────────────────────────
@@ -291,185 +262,98 @@ export default function TravelPage() {
     return unsub;
   }, []);
 
-  // ── Fetch history + AI message on auth ready ───────────────────────────────
+  // ── Boot: load default location ────────────────────────────────────────────
   useEffect(() => {
-    if (!ready || !user) return;
+    if (!ready || !user || hasFetchedRef.current) return;
+    hasFetchedRef.current = true;
 
     user.getIdToken().then(async (token) => {
-      // Fetch travel history and AI message in parallel
-      const [histRes, agentRes] = await Promise.allSettled([
-        fetch("/api/destinations/history", {
+      try {
+        const agentRes = await fetch("/api/travel-agent", {
           headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch("/api/travel-agent", {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      ]);
-
-      if (histRes.status === "fulfilled" && histRes.value.ok) {
-        const data = (await histRes.value.json()) as {
-          history: TravelLogEntry[];
-        };
-        setTravelHistory(data.history);
-        // Pre-fetch weather for each city
-        data.history.forEach((entry) => {
-          fetchCityWeatherFor(entry.destination, token);
         });
-      }
+        if (!agentRes.ok) return;
+        const agentData = (await agentRes.json()) as { defaultLocation?: string };
+        const location = agentData.defaultLocation?.trim() ?? "";
+        if (!location) return;
 
-      if (agentRes.status === "fulfilled" && agentRes.value.ok) {
-        const data = (await agentRes.value.json()) as { message: string };
-        setAiMessage(data.message);
-      } else {
-        setAiMessage("Find your perfect stay.");
-      }
+        setDefaultLocation(location);
+        setLocState("loading");
 
-      setAiLoading(false);
+        const cityRes = await fetch("/api/city", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ city: location }),
+        });
+        if (cityRes.ok) {
+          setCityData((await cityRes.json()) as CityData);
+          setLocState("done");
+        } else {
+          setLocState("idle");
+        }
+      } catch {
+        setLocState("idle");
+      }
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, user]);
 
-  // ── Auto-scroll chat to bottom ────────────────────────────────────────────
+  // ── Auto-scroll chat ───────────────────────────────────────────────────────
   useEffect(() => {
     if (chatMessages.length > 0 || chatLoading) {
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
     }
   }, [chatMessages, chatLoading]);
 
-  // ── Debounced autocomplete ─────────────────────────────────────────────────
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (destQuery.trim().length < 2) {
-      setSuggestions([]);
-      return;
-    }
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch(
-          `/api/destinations?q=${encodeURIComponent(destQuery)}`
-        );
-        if (res.ok) {
-          const data = (await res.json()) as { suggestions: Suggestion[] };
-          setSuggestions(data.suggestions);
+  // ── GPS location request ───────────────────────────────────────────────────
+  const requestLocation = () => {
+    if (!user || !navigator.geolocation || locState === "loading") return;
+    setLocState("loading");
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const token = await user.getIdToken();
+          const cityRes = await fetch("/api/city", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+          });
+          if (!cityRes.ok) { setLocState("error"); return; }
+          const payload = (await cityRes.json()) as CityData;
+          setDefaultLocation(payload.city);
+          setCityData(payload);
+          setLocState("done");
+          fetch("/api/travel-agent", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ defaultLocation: payload.city, defaultAddress: payload.city }),
+          }).catch(() => { /* non-fatal */ });
+        } catch {
+          setLocState("error");
         }
-      } catch { /* silent */ }
-    }, 380);
-  }, [destQuery]);
-
-  // ── City weather fetch ─────────────────────────────────────────────────────
-  const fetchCityWeatherFor = async (destination: string, idToken: string) => {
-    setCityWeatherMap((m) => {
-      if (m[destination]) return m;
-      return { ...m, [destination]: "loading" };
-    });
-    try {
-      const res = await fetch("/api/city", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({ city: destination }),
-      });
-      if (res.ok) {
-        const data = (await res.json()) as CityData;
-        setCityWeatherMap((m) => ({ ...m, [destination]: data }));
-      } else {
-        setCityWeatherMap((m) => {
-          const n = { ...m };
-          delete n[destination];
-          return n;
-        });
-      }
-    } catch {
-      setCityWeatherMap((m) => {
-        const n = { ...m };
-        delete n[destination];
-        return n;
-      });
-    }
+      },
+      (err) => { setLocState(err.code === 1 ? "denied" : "error"); },
+      { timeout: 12_000, maximumAge: 60_000 }
+    );
   };
 
-  const fetchCityWeather = async (destination: string) => {
-    if (cityWeatherMap[destination] || !user) return;
-    const idToken = await user.getIdToken();
-    await fetchCityWeatherFor(destination, idToken);
+  // ── Activity toggle ────────────────────────────────────────────────────────
+  const toggleActivity = (id: string) => {
+    setSelectedActivities((prev) =>
+      prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id]
+    );
   };
-
-  // ── Search actions ─────────────────────────────────────────────────────────
-  const selectPlace = async (s: Suggestion) => {
-    setSelectedPlace(s.name);
-    setDestQuery(s.name);
-    setSuggestions([]);
-    setSearchFocused(false);
-    setResortLoading(true);
-    setResortError(false);
-    setResorts([]);
-    searchInputRef.current?.blur();
-
-    try {
-      const idToken = user ? await user.getIdToken() : "";
-      const res = await fetch("/api/destinations", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({
-          placeName: s.displayName,
-          destinationName: s.name,
-        }),
-      });
-      if (res.ok) {
-        const data = (await res.json()) as { resorts: Resort[] };
-        setResorts(data.resorts);
-        if (data.resorts.length === 0) setResortError(true);
-        if (data.resorts.length > 0) {
-          const newEntry: TravelLogEntry = {
-            destination: s.name,
-            resorts: data.resorts,
-            timestamp: Date.now(),
-          };
-          const idToken2 = user ? await user.getIdToken() : "";
-          setTravelHistory((prev) => [
-            newEntry,
-            ...prev.filter(
-              (e) => e.destination.toLowerCase() !== s.name.toLowerCase()
-            ),
-          ].slice(0, 5));
-          fetchCityWeatherFor(s.name, idToken2);
-        }
-      } else {
-        setResortError(true);
-      }
-    } catch {
-      setResortError(true);
-    } finally {
-      setResortLoading(false);
-    }
-  };
-
-  const clearSearch = () => {
-    setDestQuery("");
-    setSuggestions([]);
-    setSelectedPlace(null);
-    setResorts([]);
-    setResortError(false);
-  };
-
-  const toggleHistory = (i: number) =>
-    setOpenHistoryIdx((prev) => (prev === i ? null : i));
 
   // ── City chat ──────────────────────────────────────────────────────────────
-  const handleCityClick = async (city: string) => {
+  const startChat = async (city: string) => {
     setChatCity(city);
     setChatMessages([]);
     setChatLoading(true);
     try {
-      const idToken = user ? await user.getIdToken() : "";
+      const token = user ? await user.getIdToken() : "";
       const res = await fetch("/api/travel-agent", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ city, mode: "intro" }),
       });
       if (res.ok) {
@@ -494,10 +378,10 @@ export default function TravelPage() {
     );
     setChatLoading(true);
     try {
-      const idToken = user ? await user.getIdToken() : "";
+      const token = user ? await user.getIdToken() : "";
       const res = await fetch("/api/travel-agent", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ city: chatCity, mode: "option", option: option.label, searchQuery: option.searchQuery }),
       });
       if (res.ok) {
@@ -517,17 +401,17 @@ export default function TravelPage() {
   if (!ready) {
     return (
       <div className="h-dvh bg-white flex flex-col items-center pt-14 pb-10">
-        <div className="w-full max-w-sm px-6 flex flex-col gap-3">
-          <Shimmer className="h-16 rounded-3xl" />
-          <Shimmer className="h-14 rounded-2xl" />
-          <Shimmer className="h-36 rounded-3xl" />
-          <Shimmer className="h-36 rounded-3xl" />
+        <div className="w-full max-w-sm px-6 flex flex-col gap-4">
+          <Shimmer className="h-28 rounded-xl" />
+          <div className="grid grid-cols-2 gap-3">
+            {[...Array(6)].map((_, i) => <Shimmer key={i} className="aspect-square rounded-2xl" />)}
+          </div>
         </div>
       </div>
     );
   }
 
-  const chatWeather = chatCity ? cityWeatherMap[chatCity] : undefined;
+  const chatWeather = chatCity === defaultLocation ? cityData : undefined;
 
   return (
     <div className="h-dvh bg-white flex flex-col items-center overflow-hidden">
@@ -535,255 +419,68 @@ export default function TravelPage() {
 
         {/* ══ BROWSE MODE ═══════════════════════════════════════════════════ */}
         {!chatCity && (
-        <motion.div
-          key="browse"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0, scale: 0.98 }}
-          transition={{ duration: 0.28, ease }}
-          className="flex-1 overflow-y-auto w-full max-w-sm px-6 pt-14 pb-10 flex flex-col gap-3"
-        >
-
-        {/* ── AI Welcome message ────────────────────────────────────────────── */}
-        <AnimatePresence mode="wait">
-          {aiLoading ? (
-            <motion.div
-              key="ai-shimmer"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <Shimmer className="w-full h-16 rounded-3xl" />
-            </motion.div>
-          ) : (
-            <motion.div
-              key="ai-card"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.38, ease }}
-              className="relative rounded-3xl bg-[#1d1d1f] px-5 py-4 overflow-hidden"
-            >
-              <div className="absolute inset-0 opacity-[0.06]" style={DOT_TEXTURE} />
-              <div className="relative z-10 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-                  <SparkIcon size={15} />
-                </div>
-                <p className="text-[14px] font-medium text-white/90 leading-snug flex-1">
-                  {aiMessage}
-                </p>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* ── Search bar ────────────────────────────────────────────────────── */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.36, delay: 0.07, ease }}
-          className="relative"
-        >
-          <div
-            className={`flex items-center gap-3 rounded-2xl px-4 py-3.5 transition-colors ${
-              searchFocused ? "bg-gray-100" : "bg-gray-50"
-            }`}
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#9ca3af"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="shrink-0"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={destQuery}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
-              onChange={(e) => {
-                setDestQuery(e.target.value);
-                setSelectedPlace(null);
-                setResorts([]);
-              }}
-              placeholder="Search a destination…"
-              className="flex-1 bg-transparent text-[15px] text-[#1d1d1f] placeholder-gray-400 outline-none"
-            />
-            {destQuery.length > 0 && (
-              <button
-                onClick={clearSearch}
-                className="shrink-0 text-gray-400 active:text-gray-600"
-              >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path
-                    d="M1 1L13 13M13 1L1 13"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </button>
-            )}
-          </div>
-
-          {/* Autocomplete dropdown */}
-          <AnimatePresence>
-            {suggestions.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.18 }}
-                className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50"
-              >
-                {suggestions.map((s, i) => (
-                  <button
-                    key={i}
-                    onMouseDown={() => selectPlace(s)}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
-                  >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="#9ca3af"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="shrink-0"
-                    >
-                      <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 1 1 18 0z" />
-                      <circle cx="12" cy="10" r="3" />
-                    </svg>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-[#1d1d1f] truncate">
-                        {s.name}
-                      </p>
-                      {s.state && (
-                        <p className="text-xs text-gray-400 truncate">
-                          {s.state}
-                        </p>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
-
-        {/* ── Search results ────────────────────────────────────────────────── */}
-        <AnimatePresence mode="wait">
-          {resortLoading && (
-            <motion.div
-              key="resort-loading"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex flex-col items-center gap-3 py-8"
-            >
-              <div className="w-6 h-6 border-2 border-black/15 border-t-black rounded-full animate-spin" />
-              <p className="text-sm text-gray-400">
-                Finding stays in {selectedPlace}…
-              </p>
-            </motion.div>
-          )}
-          {!resortLoading && selectedPlace && resorts.length > 0 && (
-            <ResortCards
-              key="fresh-resorts"
-              resorts={resorts}
-              label={selectedPlace}
-            />
-          )}
-          {!resortLoading && resortError && (
-            <motion.div
-              key="no-results"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="text-center py-6"
-            >
-              <p className="text-sm text-gray-400">
-                No stays found for{" "}
-                <span className="font-medium text-[#1d1d1f]">
-                  {selectedPlace}
-                </span>
-                .
-              </p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* ── Historic city tiles ───────────────────────────────────────────── */}
-        {!selectedPlace && !resortLoading && (
           <motion.div
+            key="browse"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.35, delay: 0.12 }}
-            className="flex flex-col gap-3"
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ duration: 0.28, ease }}
+            className="flex-1 overflow-y-auto w-full max-w-sm px-6 pt-14 pb-10 flex flex-col gap-4"
           >
-            {travelHistory.map((entry, i) => {
-              const w = cityWeatherMap[entry.destination];
-              const hasData = w && typeof w === "object";
-              return (
-                <div key={i} className="flex flex-col gap-2">
-                  {/* Clickable tile when weather data is ready */}
-                  <div
-                    className={hasData ? "cursor-pointer" : ""}
-                    onClick={() => { if (hasData) handleCityClick(entry.destination); }}
-                  >
-                    <CityTile
-                      data={typeof w === "object" ? w : null}
-                      locState={w === "loading" ? "loading" : "idle"}
-                      onRequestLocation={() => fetchCityWeather(entry.destination)}
-                    />
-                  </div>
 
-                  {entry.resorts.length > 0 && (
-                    <>
-                      <button
-                        onClick={() => setOpenHistoryIdx((p) => (p === i ? null : i))}
-                        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 rounded-2xl active:scale-[0.98] transition-transform text-left"
-                      >
-                        <p className="text-[13px] font-medium text-[#1d1d1f]">
-                          {entry.resorts.length} stay{entry.resorts.length !== 1 ? "s" : ""} in {entry.destination}
-                        </p>
-                        <motion.div animate={{ rotate: openHistoryIdx === i ? 90 : 0 }} transition={{ duration: 0.2 }}>
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="9 18 15 12 9 6" />
-                          </svg>
-                        </motion.div>
-                      </button>
-                      <AnimatePresence>
-                        {openHistoryIdx === i && (
-                          <motion.div key="resorts" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.2 }}>
-                            <ResortCards resorts={entry.resorts} label={entry.destination} />
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </>
-                  )}
-                </div>
-              );
-            })}
+            {/* ── Location header tile ───────────────────────────────────── */}
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, ease }}
+            >
+              <CityTile
+                data={cityData}
+                locState={locState}
+                onRequestLocation={requestLocation}
+                onChangeLocation={locState === "done" ? requestLocation : undefined}
+              />
+            </motion.div>
 
-            {travelHistory.length === 0 && !aiLoading && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="text-center py-12">
-                <p className="text-sm text-gray-300">No past searches yet</p>
-                <p className="text-xs text-gray-200 mt-1">Search a destination above to get started</p>
-              </motion.div>
-            )}
+            {/* ── Section label ──────────────────────────────────────────── */}
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3, delay: 0.15, ease }}
+              className="text-[11px] font-semibold text-gray-400 uppercase tracking-[0.14em] px-1"
+            >
+              What are you into?
+            </motion.p>
+
+            {/* ── Activity grid ──────────────────────────────────────────── */}
+            <div className="grid grid-cols-2 gap-3">
+              {ACTIVITIES.map((act, i) => (
+                <ActivityTile
+                  key={act.id}
+                  activity={act}
+                  selected={selectedActivities.includes(act.id)}
+                  onToggle={() => toggleActivity(act.id)}
+                  delay={0.1 + i * 0.06}
+                />
+              ))}
+
+              {/* More button — 6th cell */}
+              <motion.button
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.32, delay: 0.1 + ACTIVITIES.length * 0.06, ease }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => { /* TODO */ }}
+                className="relative aspect-square rounded-2xl bg-gray-50 flex flex-col items-center justify-center gap-2 active:bg-gray-100 transition-colors"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
+                </svg>
+                <p className="text-[13px] font-medium text-gray-400">More</p>
+              </motion.button>
+            </div>
+
           </motion.div>
-        )}
-        </motion.div>
         )}
 
         {/* ══ CITY CHAT MODE ════════════════════════════════════════════════ */}
@@ -796,10 +493,9 @@ export default function TravelPage() {
             transition={{ duration: 0.35, ease }}
             className="flex-1 flex flex-col overflow-hidden w-full max-w-sm"
           >
-            {/* City header */}
-            <div className="relative bg-[#1d1d1f] px-5 pt-12 pb-4 flex-shrink-0 overflow-hidden">
-              <div className="absolute inset-0 opacity-[0.06]" style={DOT_TEXTURE} />
-              <div className="relative z-10 flex items-center gap-3">
+            {/* Chat header */}
+            <div className="relative bg-[#1d1d1f] px-5 pt-12 pb-4 shrink-0">
+              <div className="flex items-center gap-3">
                 <motion.button
                   whileTap={{ scale: 0.88 }}
                   onClick={exitChat}
@@ -810,10 +506,10 @@ export default function TravelPage() {
                   </svg>
                 </motion.button>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-medium tracking-widest uppercase text-white/30">Exploring</p>
-                  <p className="text-[19px] font-semibold text-white leading-tight truncate">{chatCity}</p>
+                  <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-white/30">Exploring</p>
+                  <p className="text-[19px] font-semibold text-white leading-tight truncate tracking-tight">{chatCity}</p>
                 </div>
-                {chatWeather && typeof chatWeather === "object" && (
+                {chatWeather && (
                   <div className="text-right shrink-0">
                     <p className="text-[22px] font-light text-white leading-none">{chatWeather.temp}°</p>
                     <p className="text-[10px] text-white/30 mt-0.5 capitalize">{chatWeather.description}</p>
@@ -829,17 +525,19 @@ export default function TravelPage() {
                   return <BotBubble key={msg.id} content={msg.content} delay={i === 0 ? 0.1 : 0} />;
                 }
                 if (msg.type === "options") {
-                  return (
-                    <OptionPills key={msg.id} options={msg.options} picked={msg.picked} onSelect={handleOptionSelect} />
-                  );
+                  return <OptionPills key={msg.id} options={msg.options} picked={msg.picked} onSelect={handleOptionSelect} />;
                 }
                 if (msg.type === "option-reply") {
                   return (
                     <motion.div key={msg.id} className="flex flex-col gap-3">
                       <BotBubble content={msg.content} />
                       {msg.events.length > 0 && (
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.28, delay: 0.15 }} className="pl-9 flex flex-col gap-2">
-                          <p className="text-[10px] font-medium text-gray-300 uppercase tracking-widest">Events</p>
+                        <motion.div
+                          initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                          transition={{ duration: 0.28, delay: 0.15 }}
+                          className="pl-9 flex flex-col gap-2"
+                        >
+                          <p className="text-[10px] font-medium text-gray-400 uppercase tracking-widest">Events</p>
                           {msg.events.map((ev, j) => (
                             <ChatEventCard key={j} event={ev} delay={j * 0.07} />
                           ))}
@@ -864,4 +562,3 @@ export default function TravelPage() {
     </div>
   );
 }
-

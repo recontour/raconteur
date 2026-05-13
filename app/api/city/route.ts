@@ -1,19 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth } from "@/lib/firebase-admin";
+import { adminDb } from "@/lib/firebase-admin";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
+
+const WEEK_S = 7 * 24 * 60 * 60; // 7 days in seconds
+
+/** Stable Firestore document key for a city name. */
+function cityKey(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")   // strip diacritics
+    .replace(/[^a-z0-9\s]/g, "")
+    .trim()
+    .replace(/\s+/g, "-");
+}
 
 export async function POST(req: NextRequest) {
-  // ── Auth ────────────────────────────────────────────────────────────────
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  try {
-    await adminAuth.verifyIdToken(authHeader.slice(7));
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // ── Validate body — accept { lat, lng } or { city } ────────────────────────
+  // ── Parse body — accept { lat, lng } or { city } ──────────────────────────
   let queryParam: string;
   try {
     const body = await req.json() as { lat?: unknown; lng?: unknown; city?: unknown };
@@ -33,49 +36,105 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "OWM_API_KEY not configured" }, { status: 500 });
   }
 
-  // ── Fetch OWM weather + air pollution ────────────────────────────────────
-  // air_pollution only accepts lat/lon, so if we have a city name we must
-  // fetch weather first to get coordinates, then fetch air_pollution.
-  try {
-    type OWMWeather = {
-      main: { temp: number; feels_like: number };
-      weather: { icon: string; description: string }[];
-      name: string;
-      coord: { lat: number; lon: number };
-    };
-    type OWMAir = { list: { main: { aqi: number } }[] };
+  // ── Fetch OWM weather first (always needed to resolve city name + coords) ──
+  type OWMWeather = {
+    main: { temp: number; feels_like: number };
+    weather: { icon: string; description: string }[];
+    name: string;
+    coord: { lat: number; lon: number };
+  };
+  type OWMAir = { list: { main: { aqi: number } }[] };
 
+  let w: OWMWeather;
+  try {
     const wRes = await fetch(
       `https://api.openweathermap.org/data/2.5/weather?${queryParam}&appid=${key}&units=metric`,
       { next: { revalidate: 600 } }
     );
     if (!wRes.ok) {
-      const body = await wRes.json().catch(() => ({}));
-      console.error("[city] OWM weather error", wRes.status, body);
-      return NextResponse.json({ error: "Upstream weather API error", detail: body }, { status: 502 });
+      const errBody = await wRes.json().catch(() => ({}));
+      console.error("[city] OWM weather error", wRes.status, errBody);
+      return NextResponse.json({ error: "Upstream weather API error" }, { status: 502 });
     }
-    const w = await wRes.json() as OWMWeather;
+    w = await wRes.json() as OWMWeather;
+  } catch {
+    return NextResponse.json({ error: "Fetch failed" }, { status: 502 });
+  }
 
+  const docId = cityKey(w.name);
+  const ref = adminDb.collection("cityIndex").doc(docId);
+
+  // ── Check cityIndex cache (fresh = within 7 days) ─────────────────────────
+  try {
+    const snap = await ref.get();
+    if (snap.exists) {
+      const cached = snap.data() as {
+        lastFetched: Timestamp;
+        city: string;
+        lat: number;
+        lon: number;
+        temp: number;
+        feelsLike: number;
+        icon: string;
+        description: string;
+        aqi: number;
+      };
+      const ageS = (Date.now() / 1000) - cached.lastFetched.seconds;
+      if (ageS < WEEK_S) {
+        return NextResponse.json({
+          temp: cached.temp,
+          feelsLike: cached.feelsLike,
+          icon: cached.icon,
+          description: cached.description,
+          city: cached.city,
+          aqi: cached.aqi,
+        });
+      }
+    }
+  } catch (err) {
+    // Cache miss on Firestore error — fall through to live fetch
+    console.warn("[city] cityIndex read failed, fetching live:", err);
+  }
+
+  // ── Fetch AQI (only when cache is stale / missing) ────────────────────────
+  let aqi = 1;
+  try {
     const aRes = await fetch(
       `https://api.openweathermap.org/data/2.5/air_pollution?lat=${w.coord.lat}&lon=${w.coord.lon}&appid=${key}`,
       { next: { revalidate: 600 } }
     );
-    if (!aRes.ok) {
-      const body = await aRes.json().catch(() => ({}));
-      console.error("[city] OWM air_pollution error", aRes.status, body);
-      return NextResponse.json({ error: "Upstream air quality API error", detail: body }, { status: 502 });
+    if (aRes.ok) {
+      const a = await aRes.json() as OWMAir;
+      aqi = a.list[0].main.aqi;
     }
-    const a = await aRes.json() as OWMAir;
-
-    return NextResponse.json({
-      temp: Math.round(w.main.temp),
-      feelsLike: Math.round(w.main.feels_like),
-      icon: w.weather[0].icon,
-      description: w.weather[0].description,
-      city: w.name,
-      aqi: a.list[0].main.aqi, // 1 (Good) – 5 (Very Poor)
-    });
   } catch {
-    return NextResponse.json({ error: "Fetch failed" }, { status: 502 });
+    console.warn("[city] AQI fetch failed, using default");
   }
+
+  const payload = {
+    city: w.name,
+    lat: w.coord.lat,
+    lon: w.coord.lon,
+    temp: Math.round(w.main.temp),
+    feelsLike: Math.round(w.main.feels_like),
+    icon: w.weather[0].icon,
+    description: w.weather[0].description,
+    aqi,
+    lastFetched: FieldValue.serverTimestamp(),
+  };
+
+  // ── Persist to cityIndex (fire-and-forget — don't block the response) ──────
+  ref.set(payload, { merge: true }).catch((err) =>
+    console.warn("[city] cityIndex write failed:", err)
+  );
+
+  return NextResponse.json({
+    temp: payload.temp,
+    feelsLike: payload.feelsLike,
+    icon: payload.icon,
+    description: payload.description,
+    city: payload.city,
+    aqi: payload.aqi,
+  });
 }
+

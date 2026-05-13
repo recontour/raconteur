@@ -12,7 +12,7 @@ import {
 import { useRouter } from "next/navigation";
 import { executeRecaptcha } from "@/lib/recaptcha";
 
-import { type Step } from "./onboarding/shared";
+import { type Step, inputCls } from "./onboarding/shared";
 import { useKeyboardOffset } from "./onboarding/BottomCTA";
 import { StepWelcome } from "./onboarding/StepWelcome";
 import { StepName } from "./onboarding/StepName";
@@ -23,9 +23,6 @@ import { StepGoogle } from "./onboarding/StepGoogle";
 import { GoogleAccountSheet } from "./onboarding/GoogleAccountSheet";
 
 import { StepNameConflict } from "./onboarding/StepNameConflict";
-
-const inputCls =
-  "w-full px-4 py-4 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black text-black text-lg shadow-sm transition-all placeholder:text-gray-400";
 
 // ---------------------------------------------------------------------------
 export default function OnboardingFlow() {

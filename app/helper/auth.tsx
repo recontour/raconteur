@@ -12,7 +12,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { auth } from "@/lib/firebase";
 
 // Routes that do NOT require authentication
-const PUBLIC_PATHS = ["/invite", "/welcome"];
+const PUBLIC_PATHS = ["/", "/invite", "/welcome"];
 
 interface AuthContextValue {
   user: User | null;
