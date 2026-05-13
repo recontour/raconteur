@@ -164,9 +164,11 @@ export async function GET(req: NextRequest) {
   });
 }
 
-// POST /api/home-welcome
-// Call this endpoint when the user searches for a new city or updates their default location.
-// It adds the searched city to the circular queue (max 5) on the userIndex collection.
+// POST /api/travel-agent
+// Handles:
+// - City/location updates
+// - Activity selection (with rotational deletion for max 10)
+// - Chat modes
 export async function POST(req: NextRequest) {
   const authHeader = req.headers.get("authorization") ?? "";
   const idToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
@@ -180,15 +182,134 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({})) as Record<string, unknown>;
+  const mode = typeof body.mode === "string" ? body.mode : "location";
+
+  // ── Mode: add-activity ─────────────────────────────────────────────────────
+  // Add an activity to selectedActivities with max 10 using rotational deletion
+  if (mode === "add-activity") {
+    const activityId = typeof body.activityId === "string" ? body.activityId : "";
+    const category = typeof body.category === "string" ? body.category : "";
+    const city = typeof body.city === "string" ? body.city : "";
+    const activityData = body.activityData as Record<string, unknown> | null;
+
+    if (!activityId || !category || !city || !activityData) {
+      return Response.json({ error: "activityId, category, city, and activityData required" }, { status: 400 });
+    }
+
+    const userIndexRef = adminDb.collection("userIndex").doc(uid);
+
+    try {
+      const result = await adminDb.runTransaction(async (t) => {
+        const snap = await t.get(userIndexRef);
+        const data = snap.exists ? snap.data() || {} : {};
+        
+        const selectedActivities = Array.isArray(data.selectedActivities)
+          ? (data.selectedActivities as Record<string, unknown>[])
+          : [];
+
+        // Remove if already exists (to update timestamp)
+        const filtered = selectedActivities.filter((a) => a.id !== activityId);
+
+        // Add new activity to front
+        const updated = [
+          {
+            id: activityId,
+            title: activityData.title,
+            category,
+            city,
+            addedAt: Date.now(),
+            context: activityData.context,
+            link: activityData.link,
+            place: activityData.place,
+          },
+          ...filtered,
+        ].slice(0, 10); // Max 10 with rotational deletion
+
+        // Create activity cache context for RAG
+        const cacheKey = `activity-${activityId}-chat`;
+        const summary = typeof activityData.context === "object" && activityData.context !== null
+          ? (activityData.context as Record<string, unknown>).summary
+          : "";
+        const title = activityData.title;
+
+        const systemPrompt = `User is interested in "${title}" in ${city} (category: ${category}). They want to explore this activity. You're a knowledgeable travel guide who can answer questions about: timing, how to get there, what to bring, cost, best practices, related activities, local tips, and safety. Reference the cached activity context when relevant.`;
+
+        t.set(
+          userIndexRef,
+          {
+            uid,
+            selectedActivities: updated,
+            [`activityCache_${cacheKey}`]: {
+              key: cacheKey,
+              activityId,
+              title,
+              category,
+              city,
+              summary: summary || "",
+              systemPrompt,
+              createdAt: FieldValue.serverTimestamp(),
+            },
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+        return { selectedActivities: updated, cacheKey };
+      });
+
+      return Response.json({
+        success: true,
+        selectedActivities: result.selectedActivities,
+        totalSelected: result.selectedActivities.length,
+        maxCapacity: 10,
+        chatContext: {
+          cacheKey: result.cacheKey,
+        },
+      });
+    } catch (err) {
+      console.error("[travel-agent POST add-activity]", err);
+      return Response.json({ error: "Failed to add activity" }, { status: 500 });
+    }
+  }
+
+  // ── Mode: add-interest ────────────────────────────────────────────────────
+  // Save an interest/category tag to userIndex.interests for RAG profiling
+  if (mode === "add-interest") {
+    const interest = typeof body.interest === "string" ? body.interest.trim() : "";
+    if (!interest) return Response.json({ error: "interest required" }, { status: 400 });
+
+    const ref = adminDb.collection("userIndex").doc(uid);
+    try {
+      await ref.set(
+        {
+          uid,
+          interests: FieldValue.arrayUnion(interest),
+          [`interestTaps.${interest}`]: FieldValue.increment(1),
+          lastInterestAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      return Response.json({ success: true });
+    } catch (err) {
+      console.error("[travel-agent POST add-interest]", err);
+      return Response.json({ error: "Failed to save interest" }, { status: 500 });
+    }
+  }
+
+  // ── Mode: location ─────────────────────────────────────────────────────────
+  // Original location/search handling
   const searchedCity = typeof body.searchedCity === "string" ? body.searchedCity.trim() : "";
   const defaultLocation = typeof body.defaultLocation === "string" ? body.defaultLocation.trim() : null;
   const defaultAddress = typeof body.defaultAddress === "string" ? body.defaultAddress.trim() : null;
   const savedDestination = body.savedDestination as Record<string, unknown> | null;
 
-  if (!searchedCity && !defaultLocation && !defaultAddress && !savedDestination) return Response.json({ error: "Provide data to update" }, { status: 400 });
+  if (!searchedCity && !defaultLocation && !defaultAddress && !savedDestination) {
+    return Response.json({ error: "Provide data to update" }, { status: 400 });
+  }
 
   const userIndexRef = adminDb.collection("userIndex").doc(uid);
-  
+
   try {
     await adminDb.runTransaction(async (t) => {
       const snap = await t.get(userIndexRef);
