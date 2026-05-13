@@ -1,12 +1,11 @@
 import { type NextRequest } from "next/server";
-import { GoogleGenAI } from "@google/genai";
+import { genkit } from "genkit";
+import { googleAI } from "@genkit-ai/googleai";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { getCityImages } from "@/app/helper/cityImages";
 
-const apiKey     = (process.env.GEMINI_API_KEY ?? "").trim();
-const isDummyKey = !apiKey || apiKey.includes("your_actual");
-const ai         = !isDummyKey ? new GoogleGenAI({ apiKey }) : null;
+const ai = genkit({ plugins: [googleAI()] });
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -141,11 +140,9 @@ The four paragraphs should form a connected portrait:
 4. The undercurrent — told subtly through a detail, a contrast, or a quiet observation that reveals the deeper force at work.`;
 
   try {
-    if (!ai) throw new Error("Gemini client not initialised");
-
-    const result = await ai.models.generateContent({
-      model:    "gemini-3.0-flash-lite",
-      contents: JOURNALIST_PROMPT,
+    const result = await ai.generate({
+      model:  "googleai/gemini-2.0-flash-lite",
+      prompt: JOURNALIST_PROMPT,
     });
 
     const raw = (result.text ?? "").trim();
@@ -168,14 +165,14 @@ The four paragraphs should form a connected portrait:
   cityRef.set(
     { brief: { paragraphs, images, briefFetchedAt: FieldValue.serverTimestamp() } },
     { merge: true }
-  ).catch((e) => console.warn("[local-brief] cityIndex write failed:", e));
+  ).catch((e: unknown) => console.warn("[local-brief] cityIndex write failed:", e));
 
   // ── Persist to userIndex (auth users only, fire-and-forget) ──────────────
   if (uid) {
     adminDb.collection("userIndex").doc(uid).set(
       { localBrief: { city, paragraphs, images, links: [], fetchedAt: FieldValue.serverTimestamp() } },
       { merge: true }
-    ).catch((e) => console.warn("[local-brief] userIndex write failed:", e));
+    ).catch((e: unknown) => console.warn("[local-brief] userIndex write failed:", e));
   }
 
   return Response.json({ city, paragraphs, images, links: [] } as LocalBriefPayload);

@@ -41,13 +41,6 @@ export default function ReportCard({ city, paragraphs, images, loading }: Report
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.42, ease: "easeOut" }}
       >
-        {/* Header */}
-        <div className="rc-report__header">
-          <span className="rc-report__label">Report</span>
-          {city && <span className="rc-report__city">{city}</span>}
-        </div>
-
-        {/* 2×2 grid */}
         <div className="rc-report__grid">
           {Array.from({ length: total }).map((_, i) => (
             loading ? (
@@ -74,7 +67,6 @@ export default function ReportCard({ city, paragraphs, images, loading }: Report
                   />
                 )}
                 <div className="rc-report__tile-body">
-                  <span className="rc-report__tile-num">0{i + 1}</span>
                   <p className="rc-report__tile-text">{paragraphs[i]}</p>
                 </div>
               </motion.button>

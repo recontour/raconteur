@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
 import CityTile, { type CityData } from "@/components/welcome/CityTile";
 import ReportCard from "@/components/welcome/ReportCard";
 import { LocationPickerSheet, type PlaceEntry } from "@/components/welcome/LocationPickerSheet";
 import { ease } from "@/lib/tokens";
+import { useAuth } from "@/app/helper/auth";
 
 const LS_KEY = "rc-city-cache";
 const LS_BRIEF_KEY = "rc-brief-cache";
@@ -80,6 +82,8 @@ function saveBriefCache(city: string, data: BriefData) {
 }
 
 export default function HomePage() {
+  const { user } = useAuth();
+  const router = useRouter();
   const [cityData, setCityData] = useState<CityData | null>(null);
   const [locState, setLocState] = useState<LocationState>("idle");
   const [brief, setBrief] = useState<BriefData | null>(null);
@@ -273,8 +277,8 @@ export default function HomePage() {
 
             <AnimatePresence>
               {locState === "done" && (
-                <motion.a
-                  href="/travel"
+                <motion.button
+                  onClick={() => router.push(user ? "/welcome" : "/invite")}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 4 }}
@@ -286,7 +290,7 @@ export default function HomePage() {
                     <span>What will be your next story?</span>
                   </span>
                   <span className="text-[11px] font-normal opacity-40 tracking-wide">Plan with your travel guru</span>
-                </motion.a>
+                </motion.button>
               )}
             </AnimatePresence>
 
