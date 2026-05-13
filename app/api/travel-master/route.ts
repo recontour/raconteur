@@ -50,7 +50,7 @@ type WorkflowSnapshot = {
 
 const MAX_MESSAGE_CHARS = 300;
 
-const GEMINI_MODEL = (process.env.GEMINI_TRAVELMASTER_MODEL || "googleai/gemini-2.0-flash-lite").trim();
+const GEMINI_MODEL = (process.env.GEMINI_TRAVELMASTER_MODEL || "gemini-3.1-flash-lite-preview").trim();
 const ai = genkit({ plugins: [googleAI()] });
 
 const INITIAL_OPTIONS: OptionNode[] = [
