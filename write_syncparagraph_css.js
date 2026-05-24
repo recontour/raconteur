@@ -1,4 +1,5 @@
-/* SyncParagraph — word-reveal prose
+const fs = require('fs');
+const css = `/* SyncParagraph — word-reveal prose
    Words fade in as audio plays. Unspoken words are faint (pale ink).
    No scrolling — text fills the page like a real book. */
 
@@ -41,3 +42,6 @@
 .dark .current {
   text-shadow: 0 0 14px rgba(220, 170, 60, 0.50);
 }
+`;
+fs.writeFileSync('components/SyncParagraph.module.css', css);
+console.log('Written', css.split('\n').length, 'lines');

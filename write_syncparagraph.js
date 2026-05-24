@@ -1,4 +1,6 @@
-"use client";
+const fs = require('fs');
+
+const tsx = `"use client";
 
 import { useMemo } from "react";
 import styles from "./SyncParagraph.module.css";
@@ -25,7 +27,7 @@ export default function SyncParagraph({
   wordTimings,
   isDark = false,
 }: SyncParagraphProps) {
-  const words = useMemo(() => text.split(/\s+/).filter(Boolean), [text]);
+  const words = useMemo(() => text.split(/\\s+/).filter(Boolean), [text]);
 
   // Index of the last word whose start time has passed (-1 = none yet)
   const currentIdx = useMemo(() => {
@@ -48,7 +50,7 @@ export default function SyncParagraph({
   }, [currentTime, duration, wordTimings, words.length]);
 
   return (
-    <div className={`${styles.prose} ${isDark ? styles.dark : ""}`}>
+    <div className={\`\${styles.prose} \${isDark ? styles.dark : ""}\`}>
       {words.map((word, i) => {
         const spoken  = i <= currentIdx;
         const current = i === currentIdx;
@@ -68,3 +70,7 @@ export default function SyncParagraph({
     </div>
   );
 }
+`;
+
+fs.writeFileSync('components/SyncParagraph.tsx', tsx);
+console.log('Written', tsx.split('\n').length, 'lines');

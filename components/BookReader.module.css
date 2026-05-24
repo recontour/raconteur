@@ -154,8 +154,55 @@
 /* ── Audio player dock ───────────────────────────────────────────────────── */
 .playerDock {
   flex-shrink: 0;
-  padding-top: 4px;
+  padding-top: 8px;
   border-top: 1px solid rgba(100, 65, 25, 0.14);
+  display: flex;
+  justify-content: center;
+}
+
+/* ── Next Chapter button ─────────────────────────────────────────────────── */
+.nextChapter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  background: transparent;
+  border: 1px solid rgba(100, 65, 25, 0.35);
+  border-radius: 2px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 0.82rem;
+  letter-spacing: 0.14em;
+  color: rgba(100, 65, 25, 0.85);
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.nextChapter:hover,
+.nextChapter:active {
+  background: rgba(100, 65, 25, 0.08);
+}
+
+/* ── The End marker ──────────────────────────────────────────────────────── */
+.theEnd {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.22em;
+  color: rgba(100, 65, 25, 0.55);
+  text-align: center;
+  padding: 10px 0;
+}
+
+[data-dark="true"] .nextChapter {
+  border-color: rgba(210, 175, 100, 0.35);
+  color: rgba(210, 175, 100, 0.85);
+}
+
+[data-dark="true"] .nextChapter:hover {
+  background: rgba(210, 175, 100, 0.08);
+}
+
+[data-dark="true"] .theEnd {
+  color: rgba(210, 175, 100, 0.55);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

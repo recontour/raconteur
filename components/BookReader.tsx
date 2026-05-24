@@ -74,6 +74,7 @@ export default function BookReader({ stories }: BookReaderProps) {
   const [audioTime, setAudioTime]         = useState(0);
   const [audioDuration, setAudioDur]      = useState(0);
   const [isPlaying, setIsPlaying]         = useState(false);
+  const [audioEnded, setAudioEnded]       = useState(false);
   const [loadedTimings, setLoadedTimings] = useState<WordTiming[] | null>(null);
 
   // Reset audio state + load VTT when page changes
@@ -81,6 +82,7 @@ export default function BookReader({ stories }: BookReaderProps) {
     setAudioTime(0);
     setAudioDur(0);
     setIsPlaying(false);
+    setAudioEnded(false);
     setLoadedTimings(null);
 
     const story = stories[page];
@@ -164,17 +166,34 @@ export default function BookReader({ stories }: BookReaderProps) {
                     isDark={isDark}
                   />
 
-                  {/* Audio player dock — active card only */}
+                  {/* Audio player dock or Next Chapter — active card only */}
                   {isActive && (
                     <div className={styles.playerDock}>
-                      <AudioPlayer
-                        audioSrc={story.audioFile}
-                        title={story.title}
-                        subtitles={story.subtitles}
-                        onTimeUpdate={setAudioTime}
-                        onDurationChange={setAudioDur}
-                        onPlayChange={setIsPlaying}
-                      />
+                      {audioEnded ? (
+                        page < total - 1 ? (
+                          <button
+                            className={styles.nextChapter}
+                            onClick={() => setPage(page + 1)}
+                          >
+                            Next Chapter
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="16" height="16">
+                              <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </button>
+                        ) : (
+                          <div className={styles.theEnd}>— The End —</div>
+                        )
+                      ) : (
+                        <AudioPlayer
+                          audioSrc={story.audioFile}
+                          title={story.title}
+                          subtitles={story.subtitles}
+                          onTimeUpdate={setAudioTime}
+                          onDurationChange={setAudioDur}
+                          onPlayChange={setIsPlaying}
+                          onEnded={() => setAudioEnded(true)}
+                        />
+                      )}
                     </div>
                   )}
                 </div>

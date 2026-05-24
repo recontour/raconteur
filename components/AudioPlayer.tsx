@@ -13,6 +13,8 @@ interface AudioPlayerProps {
   onDurationChange?: (duration: number) => void;
   /** Called whenever play/pause state changes */
   onPlayChange?: (playing: boolean) => void;
+  /** Called when audio playback reaches the end */
+  onEnded?: () => void;
 }
 
 export default function AudioPlayer({
@@ -22,6 +24,7 @@ export default function AudioPlayer({
   onTimeUpdate,
   onDurationChange,
   onPlayChange,
+  onEnded,
 }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying]     = useState(false);
@@ -33,9 +36,11 @@ export default function AudioPlayer({
   const onTimeRef     = useRef(onTimeUpdate);
   const onDurRef      = useRef(onDurationChange);
   const onPlayRef     = useRef(onPlayChange);
+  const onEndedRef    = useRef(onEnded);
   useEffect(() => { onTimeRef.current  = onTimeUpdate;     }, [onTimeUpdate]);
   useEffect(() => { onDurRef.current   = onDurationChange; }, [onDurationChange]);
   useEffect(() => { onPlayRef.current  = onPlayChange;     }, [onPlayChange]);
+  useEffect(() => { onEndedRef.current = onEnded;          }, [onEnded]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -64,6 +69,7 @@ export default function AudioPlayer({
     const handleEnded = () => {
       setIsPlaying(false);
       onPlayRef.current?.(false);
+      onEndedRef.current?.();
     };
 
     audio.addEventListener("timeupdate",      handleTimeUpdate);
