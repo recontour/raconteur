@@ -1,9 +1,32 @@
-/* SyncParagraph — word-reveal prose
-   Words fade in as audio plays. Unspoken words are faint (pale ink).
-   No scrolling — text fills the page like a real book. */
+/* SyncParagraph — word-reveal prose with teleprompter scroll
+   The clip container hides overflow and applies a fade mask.
+   The inner div is translated so the active word stays at ~42% height. */
 
-.prose {
+/* ── Clip container ──────────────────────────────────────────────────────── */
+.proseClip {
   flex: 1;
+  position: relative;
+  overflow: hidden;
+  /* Fade at top and bottom so scroll feels organic */
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 10%,
+    black 78%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 10%,
+    black 78%,
+    transparent 100%
+  );
+}
+
+/* ── Inner translating block ─────────────────────────────────────────────── */
+.proseInner {
+  position: relative;
   font-family: Georgia, 'Times New Roman', serif;
   font-size: 1.02rem;
   line-height: 1.92;
@@ -12,11 +35,12 @@
   letter-spacing: 0.01em;
   color: inherit;
   text-indent: 2em;
-  overflow: hidden;
-  mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+  /* Smooth scroll to current word */
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
 }
 
+/* ── Word tokens ─────────────────────────────────────────────────────────── */
 .word {
   transition: opacity 0.35s ease;
   display: inline;
@@ -34,7 +58,8 @@
   text-shadow: 0 0 12px rgba(160, 100, 30, 0.55);
 }
 
-.dark.prose {
+/* ── Dark mood overrides ─────────────────────────────────────────────────── */
+.dark.proseClip {
   color: #e2d5bc;
 }
 

@@ -8,7 +8,10 @@ const FADE_STEP     = 0.02;
 const FADE_INTERVAL = 50; // ms
 
 export function useMoodMusic(mood: string) {
-  const [enabled, setEnabled]   = useState(false);
+  const [enabled, setEnabled]   = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("rc_music") !== "off";
+  });
   const audioRef                = useRef<HTMLAudioElement | null>(null);
   const currentMoodRef          = useRef<string>("");
   const fadeTimerRef            = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -72,7 +75,15 @@ export function useMoodMusic(mood: string) {
     [fadeIn]
   );
 
-  const toggle = useCallback(() => setEnabled((v) => !v), []);
+  const toggle = useCallback(() => {
+    setEnabled((v) => {
+      const next = !v;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("rc_music", next ? "on" : "off");
+      }
+      return next;
+    });
+  }, []);
 
   // Master effect — reacts to enabled toggle and mood changes
   useEffect(() => {
