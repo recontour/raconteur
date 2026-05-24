@@ -1,9 +1,11 @@
 .container {
-  position: relative;
-  width: 100%;
+  position: fixed;
+  inset: 0;
+  width: 100vw;
   height: 100dvh;
   overflow: hidden;
   background: #f2f2f7;
+  z-index: 0;
 }
 
 .canvas {
