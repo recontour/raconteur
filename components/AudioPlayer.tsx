@@ -7,6 +7,8 @@ interface AudioPlayerProps {
   audioSrc: string;
   title: string;
   subtitles?: Array<{ time: number; text: string }>;
+  /** Seek to this position (seconds) once audio metadata is loaded */
+  initialTime?: number;
   /** Called on every timeupdate — use this to drive SyncParagraph */
   onTimeUpdate?: (time: number) => void;
   /** Called once the audio file metadata loads */
@@ -21,12 +23,15 @@ export default function AudioPlayer({
   audioSrc,
   title,
   subtitles = [],
+  initialTime = 0,
   onTimeUpdate,
   onDurationChange,
   onPlayChange,
   onEnded,
 }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
+  // Capture initialTime once on mount so it's immune to re-renders
+  const seekOnLoadRef = useRef(initialTime);
   const [isPlaying, setIsPlaying]     = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration]       = useState(0);
@@ -64,6 +69,10 @@ export default function AudioPlayer({
     const handleLoadedMetadata = () => {
       setDuration(audio.duration);
       onDurRef.current?.(audio.duration);
+      if (seekOnLoadRef.current > 0) {
+        audio.currentTime = seekOnLoadRef.current;
+        seekOnLoadRef.current = 0;
+      }
     };
 
     const handleEnded = () => {

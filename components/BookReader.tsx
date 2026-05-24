@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import AudioPlayer from "./AudioPlayer";
 import BookBackground from "./BookBackground";
 import SyncParagraph, { WordTiming } from "./SyncParagraph";
@@ -70,8 +70,30 @@ const DARK_MOODS = new Set([
 ]);
 
 // ─── Component ───────────────────────────────────────────────────────────────
+const PROGRESS_KEY = "raconteur_progress";
+
 export default function BookReader({ stories }: BookReaderProps) {
   const [page, setPage] = useState(0);
+
+  // Ref holds the time to seek to when the restored page's AudioPlayer mounts.
+  // Cleared to 0 after any manual navigation so new pages always start from 0.
+  const initialTimeRef = useRef(0);
+  const didNavigate    = useRef(false);
+
+  // ── Restore progress from localStorage on mount ───────────────────────
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PROGRESS_KEY);
+      if (raw) {
+        const { page: p, time: t } = JSON.parse(raw) as { page: number; time: number };
+        if (typeof p === "number" && p >= 0 && p < stories.length) {
+          initialTimeRef.current = typeof t === "number" && t > 0 ? t : 0;
+          if (p !== 0) setPage(p);
+        }
+      }
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Audio sync state ───────────────────────────────────────────────────
   const [audioTime, setAudioTime]         = useState(0);
@@ -99,8 +121,14 @@ export default function BookReader({ stories }: BookReaderProps) {
   // ── Keyboard navigation (dev convenience) ───────────────────────────────
   useEffect(() => {
     const handle = (e: KeyboardEvent) => {
-      if (e.key === "ArrowDown") setPage((p) => Math.min(p + 1, stories.length - 1));
-      if (e.key === "ArrowUp")   setPage((p) => Math.max(p - 1, 0));
+      if (e.key === "ArrowDown") {
+        didNavigate.current = true;
+        setPage((p) => Math.min(p + 1, stories.length - 1));
+      }
+      if (e.key === "ArrowUp") {
+        didNavigate.current = true;
+        setPage((p) => Math.max(p - 1, 0));
+      }
     };
     window.addEventListener("keydown", handle);
     return () => window.removeEventListener("keydown", handle);
@@ -189,7 +217,10 @@ export default function BookReader({ stories }: BookReaderProps) {
                         page < total - 1 ? (
                           <button
                             className={styles.nextChapter}
-                            onClick={() => setPage(page + 1)}
+                            onClick={() => {
+                            didNavigate.current = true;
+                            setPage(page + 1);
+                          }}
                           >
                             Next Chapter
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="16" height="16">
@@ -204,7 +235,13 @@ export default function BookReader({ stories }: BookReaderProps) {
                           audioSrc={story.audioFile}
                           title={story.title}
                           subtitles={story.subtitles}
-                          onTimeUpdate={setAudioTime}
+                          initialTime={didNavigate.current ? 0 : initialTimeRef.current}
+                          onTimeUpdate={(t) => {
+                            setAudioTime(t);
+                            try {
+                              localStorage.setItem(PROGRESS_KEY, JSON.stringify({ page, time: t }));
+                            } catch {}
+                          }}
                           onDurationChange={setAudioDur}
                           onPlayChange={setIsPlaying}
                           onEnded={() => setAudioEnded(true)}
