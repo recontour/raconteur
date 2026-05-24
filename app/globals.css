@@ -1,5 +1,3 @@
-@import "tailwindcss";
-
 /* ── Design tokens ─────────────────────────────────────────────────────────── */
 :root {
   /* Colours */
@@ -29,6 +27,15 @@ body {
   background: var(--rc-bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+html {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
 }
 
 /* ── Tap highlight reset ────────────────────────────────────────────────────── */
@@ -41,214 +48,9 @@ body {
   visibility: hidden !important;
 }
 
-/* ── Report card ─────────────────────────────────────────────────────────────
-   2×2 clickable grid + bottom-sheet detail view.
-   All structural + cosmetic rules live here; components stay logic-only.
-   ──────────────────────────────────────────────────────────────────────────── */
-
-.rc-report {
-  border-radius: var(--rc-radius-xl);
-  overflow: hidden;
-  background: var(--rc-ink);
-}
-
-/* 2×2 cells separated by 1 px seams */
-.rc-report__grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1px;
-  background: rgba(255, 255, 255, 0.07);
-}
-
-.rc-report__tile {
-  position: relative;
-  aspect-ratio: 2/3;
-  background: var(--rc-ink);
-  overflow: hidden;
-  cursor: pointer;
-  border: none;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  text-align: left;
-  -webkit-user-select: none;
-  user-select: none;
-}
-
-.rc-report__tile--skeleton {
-  background: rgba(255, 255, 255, 0.05);
-  cursor: default;
-}
-
-/* Background photo at low opacity */
-.rc-report__tile-img {
-  position: absolute;
-  inset: 0;
-  background-size: cover;
-  background-position: center;
-  opacity: 0.22;
-  transition: opacity 0.3s var(--rc-spring);
-}
-
-.rc-report__tile:active .rc-report__tile-img {
-  opacity: 0.38;
-}
-
-/* Gradient + text at tile top */
-.rc-report__tile-body {
-  position: relative;
-  z-index: 1;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  padding: 12px;
-  background: linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, 0.72) 0%,
-    rgba(0, 0, 0, 0.18) 52%,
-    transparent 100%
-  );
-}
-
-.rc-report__tile-text {
-  font-size: 11px;
-  line-height: 1.55;
-  color: rgba(255, 255, 255, 0.75);
-  display: -webkit-box;
-  -webkit-line-clamp: 5;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  margin: 0;
-}
-
-/* ── Backdrop (portal-rendered, fixed) ────────────────────────────────────── */
-.rc-report__backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.58);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  z-index: 200;
-}
-
-/* ── Bottom sheet (portal-rendered, fixed) ────────────────────────────────── */
-.rc-report__sheet {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 201;
-  background: #1a1a1c;
-  border-radius: 22px 22px 0 0;
-  overflow: hidden;
-  max-height: 88dvh;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Drag pill */
-.rc-report__sheet-pill {
-  position: absolute;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 34px;
-  height: 4px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.18);
-  z-index: 2;
-  pointer-events: none;
-}
-
-.rc-report__sheet-img-wrap {
-  position: relative;
-  flex-shrink: 0;
-}
-
-.rc-report__sheet-img {
+/* ── WebGL Canvas Styling ─────────────────────────────────────────────────── */
+.webgl-canvas {
   width: 100%;
-  height: 260px;
-  object-fit: cover;
+  height: 100%;
   display: block;
-}
-
-.rc-report__sheet-img-placeholder {
-  height: 130px;
-  background: rgba(255, 255, 255, 0.05);
-}
-
-/* X close button over the image */
-.rc-report__close {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.46);
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2;
-}
-
-/* Scrollable body */
-.rc-report__sheet-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px 24px 48px;
-  -webkit-overflow-scrolling: touch;
-}
-
-.rc-report__sheet-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-
-.rc-report__sheet-count {
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.26);
-}
-
-.rc-report__sheet-nav {
-  display: flex;
-  gap: 4px;
-}
-
-.rc-report__nav-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255, 255, 255, 0.60);
-  transition: background 0.15s ease, opacity 0.15s ease;
-}
-
-.rc-report__nav-btn:disabled {
-  opacity: 0.22;
-  cursor: default;
-}
-
-.rc-report__nav-btn:not(:disabled):active {
-  background: rgba(255, 255, 255, 0.14);
-}
-
-.rc-report__sheet-text {
-  font-size: 15px;
-  line-height: 1.74;
-  color: rgba(255, 255, 255, 0.82);
-  margin: 0;
 }

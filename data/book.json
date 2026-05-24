@@ -1,0 +1,20 @@
+{
+  "stories": [
+    {
+      "id": 1,
+      "title": "The Festival of Summer",
+      "paragraph": "With a clamor of bells that set the swallows soaring, the Festival of Summer came to the city Omelas, bright-towered by the sea. The ringing of the boats in harbor sparkled with flags. In the streets between houses with red roofs and painted walls, between old moss-grown gardens and under avenues of trees, past great parks and public buildings, processions moved.",
+      "audioFile": "/audio/par1.mp3",
+      "duration": 0,
+      "subtitles": []
+    },
+    {
+      "id": 2,
+      "title": "The Procession",
+      "paragraph": "Some were decorous: old people in long stiff robes of mauve and gray, grave master workmen, quiet, merry women carrying their babies and chatting as they walked. In other streets the music beat faster, a shimmering of gong and tambourine, and the people went dancing, the procession was a dance. Children dodged in and out, their high calls rising like the swallows' crossing flights over the music and the singing. All the processions wound towards the north side of the city, where on the great water-meadow called the Green Fields boys and girls, naked in the bright air, with mud-stained feet and ankles and long, lithe arms, exercised their restive horses before the race. The horses wore no gear at all but a halter without bit.",
+      "audioFile": "/audio/par2.mp3",
+      "duration": 0,
+      "subtitles": []
+    }
+  ]
+}

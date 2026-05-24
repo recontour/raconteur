@@ -17,8 +17,7 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // Allow Firebase signInWithPopup / linkWithPopup to poll window.closed
-        // on the OAuth popup without being blocked by COOP.
+        // Minimal config for auth and Firebase only
         source: "/(.*)",
         headers: [
           {

@@ -1,0 +1,153 @@
+.player {
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.7rem;
+  background: rgba(45, 45, 51, 0.8);
+  backdrop-filter: blur(20px);
+  border-radius: 12px;
+  border: 1px solid rgba(60, 60, 67, 0.2);
+  overflow: hidden;
+}
+
+.subtitles {
+  min-height: 2rem;
+  font-size: 0.8rem;
+  color: #e5e5ea;
+  text-align: center;
+  line-height: 1.3;
+  font-style: italic;
+  opacity: 0.9;
+}
+
+.title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #f2f2f7;
+  text-align: center;
+  letter-spacing: -0.2px;
+}
+
+.progressContainer {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.progressBar {
+  flex: 1;
+  height: 2px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(60, 60, 67, 0.3);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.progressBar::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  background: #007aff;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.progressBar::-webkit-slider-thumb:hover {
+  width: 10px;
+  height: 10px;
+}
+
+.progressBar::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  background: #007aff;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+}
+
+.progressBar::-moz-range-thumb:hover {
+  width: 10px;
+  height: 10px;
+}
+
+.progressBar:hover {
+  background: rgba(60, 60, 67, 0.5);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.4rem;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.time {
+  font-size: 0.65rem;
+  color: rgba(229, 229, 234, 0.7);
+  min-width: 50px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.playButton {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #007aff 0%, #0051d5 100%);
+  color: white;
+  cursor: pointer;
+}
+
+.playButton:hover {
+  opacity: 0.9;
+}
+
+.playButton:active {
+  opacity: 0.8;
+}
+
+.playButton svg {
+  width: 16px;
+  height: 16px;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
