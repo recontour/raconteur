@@ -64,66 +64,60 @@
   transform: scale(0.93);
   opacity:   0.52;
 }
-/* rows 4-10: explicit gray so they're visibly light, not invisible */
+/* rows 4-10: warm parchment grays — inherit dark ink colour with opacity */
 .line[data-distance="4"] {
   transform: scale(0.91);
   opacity:   0.40;
-  color:     #888;
 }
 .line[data-distance="5"] {
   transform: scale(0.90);
   opacity:   0.32;
-  color:     #888;
 }
 .line[data-distance="6"] {
   transform: scale(0.89);
   opacity:   0.25;
-  color:     #aaa;
 }
 .line[data-distance="7"] {
   transform: scale(0.88);
   opacity:   0.18;
-  color:     #aaa;
 }
 .line[data-distance="8"] {
   transform: scale(0.87);
   opacity:   0.12;
-  color:     #bbb;
 }
 .line[data-distance="9"] {
   transform: scale(0.86);
   opacity:   0.07;
-  color:     #bbb;
 }
 .line[data-distance="10"] {
   transform: scale(0.85);
   opacity:   0.03;
-  color:     #ccc;
 }
 
-/* ── Dark card overrides ── */
+/* ── Dark pages: candlelight gold ── */
 .dark .line[data-distance="0"] {
-  color:       #ddeeff;
-  text-shadow: 0 0 20px rgba(120, 200, 255, 0.5);
+  color:       #e8d5a8;
+  text-shadow: 0 0 22px rgba(220, 170, 60, 0.40);
 }
 .dark .line[data-distance="1"] {
-  color: #aac8e8;
+  color: #cfc090;
 }
 .dark .line[data-distance="2"],
 .dark .line[data-distance="3"] {
-  color: #7a9cc0;
+  color: #b0a070;
 }
 .dark .line[data-distance="4"],
 .dark .line[data-distance="5"] {
-  color: #6a8aa8;
+  color: #8a7850;
 }
 .dark .line[data-distance="6"],
 .dark .line[data-distance="7"] {
-  color: #5a7898;
+  color: #6a5838;
 }
 .dark .line[data-distance="8"],
 .dark .line[data-distance="9"],
 .dark .line[data-distance="10"] {
-  color: #4a6888;
+  color: #4a3820;
 }
+
 

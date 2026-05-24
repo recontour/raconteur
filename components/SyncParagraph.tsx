@@ -100,7 +100,8 @@ export default function SyncParagraph({
 
   useEffect(() => {
     let target = 0;
-    if (!duration) {
+    if (!duration || (!isPlaying && currentTime === 0)) {
+      // No audio loaded, or audio ready but not yet started — preview the middle
       target = Math.floor(lines.length / 2);
     } else {
       for (let i = 0; i < lineTimings.length; i++) {
@@ -125,7 +126,7 @@ export default function SyncParagraph({
     const ty = container.clientHeight / 2 - lineEl.offsetTop - lineEl.clientHeight / 2;
     inner.style.transition = "transform 0.65s cubic-bezier(0.25, 1, 0.5, 1)";
     inner.style.transform  = `translateY(${ty}px)`;
-  }, [currentTime, duration, lineTimings, lines.length]);
+  }, [currentTime, duration, isPlaying, lineTimings, lines.length]);
 
   return (
     <div

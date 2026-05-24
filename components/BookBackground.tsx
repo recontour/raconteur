@@ -7,18 +7,18 @@ import * as THREE from "three";
 // ─── Mood palette ────────────────────────────────────────────────────────────
 // Maps story mood slug → [bg r,g,b  lineR,g,b]
 const MOOD_COLORS: Record<string, { bg: [number, number, number]; line: [number, number, number] }> = {
-  dawn:        { bg: [0.96, 0.92, 0.84], line: [0.70, 0.60, 0.45] },
-  inquiry:     { bg: [0.94, 0.90, 0.82], line: [0.65, 0.55, 0.40] },
-  philosophic: { bg: [0.91, 0.87, 0.80], line: [0.60, 0.52, 0.38] },
-  vivid:       { bg: [0.95, 0.91, 0.82], line: [0.72, 0.62, 0.44] },
-  pivot:       { bg: [0.78, 0.75, 0.72], line: [0.50, 0.45, 0.40] },
-  descending:  { bg: [0.22, 0.20, 0.26], line: [0.35, 0.30, 0.40] },
-  harrowing:   { bg: [0.10, 0.09, 0.13], line: [0.22, 0.18, 0.28] },
-  revelation:  { bg: [0.12, 0.10, 0.16], line: [0.28, 0.22, 0.35] },
-  moral:       { bg: [0.14, 0.12, 0.18], line: [0.30, 0.25, 0.38] },
-  reckoning:   { bg: [0.13, 0.11, 0.17], line: [0.28, 0.22, 0.35] },
-  impossible:  { bg: [0.08, 0.07, 0.10], line: [0.20, 0.16, 0.26] },
-  departure:   { bg: [0.06, 0.06, 0.09], line: [0.16, 0.14, 0.22] },
+  dawn:        { bg: [0.93, 0.86, 0.71], line: [0.62, 0.48, 0.28] },
+  inquiry:     { bg: [0.91, 0.84, 0.69], line: [0.58, 0.45, 0.26] },
+  philosophic: { bg: [0.89, 0.82, 0.67], line: [0.56, 0.43, 0.25] },
+  vivid:       { bg: [0.92, 0.85, 0.70], line: [0.60, 0.47, 0.27] },
+  pivot:       { bg: [0.74, 0.68, 0.58], line: [0.45, 0.37, 0.25] },
+  descending:  { bg: [0.16, 0.12, 0.08], line: [0.30, 0.22, 0.14] },
+  harrowing:   { bg: [0.09, 0.07, 0.05], line: [0.20, 0.14, 0.09] },
+  revelation:  { bg: [0.11, 0.08, 0.06], line: [0.24, 0.17, 0.11] },
+  moral:       { bg: [0.13, 0.10, 0.07], line: [0.26, 0.19, 0.13] },
+  reckoning:   { bg: [0.12, 0.09, 0.06], line: [0.24, 0.17, 0.11] },
+  impossible:  { bg: [0.07, 0.05, 0.04], line: [0.18, 0.12, 0.08] },
+  departure:   { bg: [0.05, 0.04, 0.03], line: [0.14, 0.10, 0.07] },
 };
 
 const DEFAULT_MOOD = MOOD_COLORS.dawn;
@@ -40,7 +40,6 @@ const FRAG = /* glsl */ `
   uniform vec3  uBgColor;
   uniform vec3  uLineColor;
 
-  // ── Hash / noise helpers ──────────────────────────────────────────────────
   float hash(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
   }
@@ -57,48 +56,69 @@ const FRAG = /* glsl */ `
   }
 
   float fbm(vec2 p) {
-    float v = 0.0;
-    float a = 0.5;
-    for (int i = 0; i < 4; i++) {
+    float v = 0.0; float a = 0.5;
+    for (int i = 0; i < 5; i++) {
       v += a * smoothNoise(p);
-      p  = p * 2.0 + vec2(1.7, 9.2);
-      a *= 0.5;
+      p  = p * 2.1 + vec2(1.7, 9.2);
+      a *= 0.48;
     }
     return v;
   }
 
   void main() {
     vec2 uv = vUv;
+    float scroll = uTime * 0.015;
 
-    // ── Slow vertical scroll (simulates reading down a page) ─────────────
-    float scroll = uTime * 0.018;
+    // ── Paper grain — two scales for depth ────────────────────────────────
+    float grain = fbm(uv * 210.0 + vec2(uTime * 0.02, 0.0)) * 0.020
+                + fbm(uv * 75.0  + vec2(0.0, uTime * 0.008)) * 0.012;
 
-    // ── Paper grain ───────────────────────────────────────────────────────
-    float grain = fbm(uv * 180.0 + vec2(uTime * 0.03, 0.0)) * 0.025;
+    // ── Paper fiber — faint horizontal striations ─────────────────────────
+    float fiber = smoothNoise(vec2(uv.x * 35.0, uv.y * 350.0)) * 0.007;
 
-    // ── Horizontal text lines ─────────────────────────────────────────────
-    float lineY   = fract((uv.y + scroll) * 26.0);
-    float line    = smoothstep(0.88, 0.96, lineY) * smoothstep(0.04, 0.0, lineY - 0.96);
-    // Indent lines slightly from edges
-    float xMask   = smoothstep(0.04, 0.09, uv.x) * smoothstep(0.04, 0.09, 1.0 - uv.x);
-    // Vary line length — some "words" don't reach the right margin
-    float lineLen = 0.75 + 0.25 * hash(vec2(floor((uv.y + scroll) * 26.0), 1.0));
-    xMask        *= smoothstep(lineLen + 0.02, lineLen - 0.01, uv.x);
-    line         *= xMask;
+    // ── Ghost text lines — impression from previous page ──────────────────
+    float lineY  = fract((uv.y + scroll) * 26.0);
+    float line   = smoothstep(0.87, 0.95, lineY) * smoothstep(0.04, 0.0, lineY - 0.95);
+    float xMask  = smoothstep(0.06, 0.11, uv.x) * smoothstep(0.05, 0.10, 1.0 - uv.x);
+    float lineLen = 0.72 + 0.28 * hash(vec2(floor((uv.y + scroll) * 26.0), 1.0));
+    xMask *= smoothstep(lineLen + 0.02, lineLen - 0.01, uv.x);
+    line  *= xMask;
 
-    // ── Left margin rule ─────────────────────────────────────────────────
-    float margin     = smoothstep(0.055, 0.060, uv.x) * smoothstep(0.068, 0.063, uv.x);
-    vec3  marginTint = mix(uBgColor, vec3(0.72, 0.25, 0.20), 0.35); // old-ink red
+    // ── Foxing — scattered age spots ──────────────────────────────────────
+    float foxing = 0.0;
+    for (int i = 0; i < 14; i++) {
+      float fi = float(i);
+      vec2 center = vec2(hash(vec2(fi * 0.91, 0.31)) * 0.80 + 0.10,
+                         hash(vec2(fi * 0.73, 1.83)) * 0.80 + 0.10);
+      float r  = 0.010 + hash(vec2(fi, 5.1)) * 0.022;
+      float el = 1.0   + hash(vec2(fi, 7.3)) * 0.60;
+      vec2  d  = (uv - center) * vec2(1.0, el);
+      float spot = smoothstep(r, r * 0.2, length(d));
+      foxing += spot * (0.03 + hash(vec2(fi, 3.3)) * 0.09);
+    }
 
-    // ── Vignette ─────────────────────────────────────────────────────────
+    // ── Book spine — shadow on left binding edge ──────────────────────────
+    float spine = smoothstep(0.0, 0.09, uv.x) * 0.32;
+
+    // ── Right page-edge curl shadow ───────────────────────────────────────
+    float curl = smoothstep(1.0, 0.94, uv.x) * 0.16;
+
+    // ── Left margin rule (old red-brown ink) ──────────────────────────────
+    float margin     = smoothstep(0.055, 0.061, uv.x) * smoothstep(0.070, 0.064, uv.x);
+    vec3  marginTint = mix(uBgColor, vec3(0.62, 0.18, 0.12), 0.5);
+
+    // ── Vignette ──────────────────────────────────────────────────────────
     vec2  vig = uv * (1.0 - uv);
-    float vignette = pow(vig.x * vig.y * 12.0, 0.38);
-    vignette = clamp(vignette, 0.55, 1.0);
+    float vignette = pow(vig.x * vig.y * 14.0, 0.32);
+    vignette = clamp(vignette, 0.42, 1.0);
 
-    // ── Assemble colour ───────────────────────────────────────────────────
-    vec3 col = uBgColor + grain;
-    col = mix(col, uLineColor, line * 0.18);
-    col = mix(col, marginTint, margin * 0.25);
+    // ── Assemble ──────────────────────────────────────────────────────────
+    vec3 col = uBgColor + grain + fiber;
+    col = mix(col, uLineColor, line * 0.13);
+    col = mix(col, uLineColor * 0.55, foxing);
+    col = mix(col, marginTint, margin * 0.30);
+    col *= (1.0 - spine);
+    col *= (1.0 - curl);
     col *= vignette;
 
     gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
