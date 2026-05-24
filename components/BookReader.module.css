@@ -221,3 +221,60 @@
   40%, 60% { opacity: 1; transform: translateX(-50%) translateY(-4px); }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   DARK CARD THEME  —  applies when data-dark="true" on the .card wrapper
+   Used for: descending, harrowing, revelation, moral, reckoning,
+             impossible, departure moods
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+[data-dark="true"] .cardInner {
+  background: rgba(6, 8, 18, 0.84);
+  backdrop-filter: blur(22px) saturate(1.8);
+  -webkit-backdrop-filter: blur(22px) saturate(1.8);
+  border: 1px solid rgba(80, 200, 255, 0.10);
+  box-shadow:
+    0 4px 32px rgba(0, 0, 0, 0.45),
+    0 1px 4px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(80, 180, 255, 0.06);
+}
+
+[data-dark="true"] .bookHeaderLine {
+  background: rgba(80, 200, 255, 0.18);
+}
+
+[data-dark="true"] .bookMeta {
+  color: rgba(100, 200, 255, 0.45);
+  letter-spacing: 0.2em;
+}
+
+[data-dark="true"] .bookTitle {
+  color: #dce8ff;
+}
+
+[data-dark="true"] .chapterNum {
+  color: rgba(80, 180, 255, 0.55);
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+[data-dark="true"] .chapterTitle {
+  color: #b8d4f8;
+}
+
+[data-dark="true"] .playerDock {
+  border-top-color: rgba(80, 200, 255, 0.08);
+}
+
+[data-dark="true"] .pip {
+  background: rgba(80, 200, 255, 0.20);
+}
+
+[data-dark="true"] .pipActive {
+  background: rgba(100, 220, 255, 0.85);
+  box-shadow: 0 0 6px rgba(80, 200, 255, 0.5);
+}
+
+[data-dark="true"] .swipeHint {
+  color: rgba(80, 200, 255, 0.4);
+}
+
+

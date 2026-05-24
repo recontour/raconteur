@@ -8,6 +8,7 @@ import {
 } from "react";
 import AudioPlayer from "./AudioPlayer";
 import BookBackground from "./BookBackground";
+import SyncParagraph, { WordTiming } from "./SyncParagraph";
 import styles from "./BookReader.module.css";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -18,7 +19,9 @@ interface Story {
   paragraph: string;
   mood?: string;
   audioFile: string;
+  vttFile?: string;          // path to WebVTT word-timing file e.g. /audio/par001.vtt
   duration: number;
+  wordTimings?: WordTiming[] | null;
   subtitles: Array<{ time: number; text: string }>;
 }
 
@@ -32,6 +35,49 @@ const DRAG_RESISTANCE = 0.35;  // visual drag follow
 const SPRING_DURATION = 520;   // ms for snap
 const SPRING_EASING   = "cubic-bezier(0.22, 1, 0.36, 1)";
 
+// ─── VTT parser ─────────────────────────────────────────────────────────────
+// Parses a WebVTT file where each cue is a single word (Whisper word timestamps).
+// Also handles multi-word cues by splitting on whitespace.
+function parseVttTime(t: string): number {
+  const parts = t.trim().split(":").map(Number);
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  return parts[0] * 60 + parts[1];
+}
+
+async function loadVtt(url: string): Promise<WordTiming[]> {
+  const text = await fetch(url).then((r) => r.text());
+  const timings: WordTiming[] = [];
+  // Split on blank lines to get cue blocks
+  const blocks = text.split(/\n\s*\n/);
+  for (const block of blocks) {
+    const lines = block.trim().split("\n");
+    const timeLine = lines.find((l) => l.includes("-->"));
+    if (!timeLine) continue;
+    const [startStr, endStr] = timeLine.split("-->");
+    const start = parseVttTime(startStr);
+    const end   = parseVttTime(endStr);
+    // Content is every line after the timestamp
+    const content = lines
+      .slice(lines.indexOf(timeLine) + 1)
+      .join(" ")
+      .replace(/<[^>]+>/g, "") // strip any VTT inline tags
+      .trim();
+    if (!content) continue;
+    // Split multi-word cues evenly
+    const words = content.match(/\S+/g) ?? [];
+    const dt = (end - start) / words.length;
+    words.forEach((word, i) => {
+      timings.push({ word, start: start + i * dt, end: start + (i + 1) * dt });
+    });
+  }
+  return timings;
+}
+
+const DARK_MOODS = new Set([
+  "descending", "harrowing", "revelation",
+  "moral", "reckoning", "impossible", "departure",
+]);
+
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
@@ -41,6 +87,27 @@ export default function BookReader({ stories }: BookReaderProps) {
   const [page, setPage]      = useState(0);
   const [dragging, setDrag]  = useState(false);
   const [dragOffset, setOff] = useState(0);
+
+  // ── Audio sync state ───────────────────────────────────────────────────
+  const [audioTime, setAudioTime]       = useState(0);
+  const [audioDuration, setAudioDur]    = useState(0);
+  const [isPlaying, setIsPlaying]       = useState(false);
+  const [loadedTimings, setLoadedTimings] = useState<WordTiming[] | null>(null);
+
+  // Reset audio state + load VTT when page changes
+  useEffect(() => {
+    setAudioTime(0);
+    setAudioDur(0);
+    setIsPlaying(false);
+    setLoadedTimings(null);
+
+    const story = stories[page];
+    if (story?.vttFile) {
+      loadVtt(story.vttFile)
+        .then(setLoadedTimings)
+        .catch(() => setLoadedTimings(null)); // fall back to linear if file missing
+    }
+  }, [page, stories]);
 
   const touch = useRef({
     startY: 0, lastY: 0,
@@ -165,17 +232,21 @@ export default function BookReader({ stories }: BookReaderProps) {
             const scale    = 1 - distance * 0.04;
             const opacity  = distance === 0 ? 1 : distance === 1 ? 0.55 : 0;
 
+            const isDark = DARK_MOODS.has(story.mood ?? "");
+            const isActive = idx === page;
+
             return (
               <div
                 key={story.id}
                 className={styles.card}
+                data-dark={isDark ? "true" : "false"}
                 style={{
                   transform: `scale(${scale})`,
                   opacity,
                   visibility: renderIndices.includes(idx) ? "visible" : "hidden",
-                  pointerEvents: idx === page ? "auto" : "none",
+                  pointerEvents: isActive ? "auto" : "none",
                 }}
-                aria-hidden={idx !== page}
+                aria-hidden={!isActive}
               >
                 <div className={styles.cardInner}>
                   {/* Book header — first card only */}
@@ -199,19 +270,29 @@ export default function BookReader({ stories }: BookReaderProps) {
                     <h2 className={styles.chapterTitle}>{story.title}</h2>
                   </div>
 
-                  {/* Scrollable paragraph text */}
-                  <div className={styles.textScroll}>
-                    <p className={styles.paragraph}>{story.paragraph}</p>
-                  </div>
+                  {/* Word-sync paragraph — core Phase 2 feature */}
+                  <SyncParagraph
+                    text={story.paragraph}
+                    currentTime={isActive ? audioTime    : 0}
+                    duration={   isActive ? audioDuration : 0}
+                    isPlaying={  isActive ? isPlaying    : false}
+                    wordTimings={isActive ? (loadedTimings ?? story.wordTimings ?? null) : null}
+                    isDark={isDark}
+                  />
 
-                  {/* Audio player dock */}
-                  <div className={styles.playerDock}>
-                    <AudioPlayer
-                      audioSrc={story.audioFile}
-                      title={story.title}
-                      subtitles={story.subtitles}
-                    />
-                  </div>
+                  {/* Audio player dock — only mount for active card */}
+                  {isActive && (
+                    <div className={styles.playerDock}>
+                      <AudioPlayer
+                        audioSrc={story.audioFile}
+                        title={story.title}
+                        subtitles={story.subtitles}
+                        onTimeUpdate={setAudioTime}
+                        onDurationChange={setAudioDur}
+                        onPlayChange={setIsPlaying}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             );
