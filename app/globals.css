@@ -54,3 +54,62 @@ html {
   height: 100%;
   display: block;
 }
+
+/* ── Portrait-only lock — ARCHITECTURAL LEVEL ────────────────────────────── */
+/* Landscape is blocked application-wide. This is enforced in CSS so no JS
+   is needed and there is no flash-of-landscape-content. */
+#landscape-gate {
+  display: none;
+}
+
+@media screen and (orientation: landscape) {
+  /* Hide the entire app content */
+  #__next,
+  body > *:not(#landscape-gate) {
+    display: none !important;
+  }
+
+  /* Show the rotation prompt */
+  #landscape-gate {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: #0a0a0f;
+    color: #f2f2f7;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+    text-align: center;
+    padding: 40px;
+  }
+
+  #landscape-gate svg {
+    width: 48px;
+    height: 48px;
+    opacity: 0.6;
+    animation: rotate-hint 2s ease-in-out infinite;
+  }
+
+  #landscape-gate p {
+    font-size: 1rem;
+    opacity: 0.7;
+    margin: 0;
+    letter-spacing: 0.02em;
+  }
+
+  @keyframes rotate-hint {
+    0%, 100% { transform: rotate(0deg); }
+    50%       { transform: rotate(-15deg); }
+  }
+}
+
+/* ── 480 px max-width enforcer — applies everywhere ─────────────────────── */
+.mobile-frame {
+  width: 100%;
+  max-width: 480px;
+  margin-inline: auto;
+  position: relative;
+}
