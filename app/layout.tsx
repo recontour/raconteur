@@ -1,17 +1,39 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 import "./globals.css";
 import { AuthProvider } from "@/app/helper/auth";
 
 export const metadata: Metadata = {
-  title: "Raconteur",
-  description: "Your personal travel storytelling companion.",
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
+  title: "Raconteur | Immersive Storytelling",
+  description: "Experience captivating stories like never before. Raconteur blends rich narratives with interactive audio and visual elements for a truly immersive journey.",
+  openGraph: {
+    title: "Raconteur | Immersive Storytelling",
+    description: "Experience captivating stories like never before. Raconteur blends rich narratives with interactive audio and visual elements for a truly immersive journey.",
+    siteName: "Raconteur",
+    images: [
+      {
+        url: "/siteOG.png",
+        width: 1200,
+        height: 630,
+        alt: "Raconteur - Immersive Storytelling",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "Raconteur | Immersive Storytelling",
+    description: "Experience captivating stories like never before. Raconteur blends rich narratives with interactive audio and visual elements for a truly immersive journey.",
+    images: ["/siteOG.png"],
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
