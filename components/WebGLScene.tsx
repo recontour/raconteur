@@ -37,10 +37,7 @@ function Scene() {
 export default function WebGLScene_({ isLoggedIn }: WebGLSceneProps) {
   const router = useRouter();
 
-  const handleChoice = (withMusic: boolean) => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("rc_music", withMusic ? "on" : "off");
-    }
+  const handleBegin = () => {
     if (isLoggedIn) {
       router.push("/book");
     } else {
@@ -73,42 +70,19 @@ export default function WebGLScene_({ isLoggedIn }: WebGLSceneProps) {
             Best experienced<br />with headphones
           </h1>
           <p className={styles.splashSub}>
-            Narration is always on.{"\u00A0"}Choose your music preference.
+            Narration included. Best with headphones.
           </p>
 
-          {/* Choice buttons */}
+          {/* Begin button */}
           <div className={styles.splashButtons}>
             <button
               className={styles.splashBtn}
-              onClick={() => handleChoice(true)}
-              aria-label="Enable music and narration"
+              onClick={handleBegin}
+              aria-label="Begin the story"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22" aria-hidden="true">
-                <path d="M3 17v-4a9 9 0 0 1 18 0v4" strokeLinecap="round" strokeLinejoin="round" />
-                <rect x="1" y="17" width="4" height="6" rx="2" />
-                <rect x="19" y="17" width="4" height="6" rx="2" />
-              </svg>
-              With Music
-            </button>
-
-            <button
-              className={`${styles.splashBtn} ${styles.splashBtnMute}`}
-              onClick={() => handleChoice(false)}
-              aria-label="Narration only, no background music"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22" aria-hidden="true">
-                <path d="M3 17v-4a9 9 0 0 1 18 0v4" strokeLinecap="round" strokeLinejoin="round" />
-                <rect x="1" y="17" width="4" height="6" rx="2" />
-                <rect x="19" y="17" width="4" height="6" rx="2" />
-                <line x1="2" y1="2" x2="22" y2="22" strokeLinecap="round" />
-              </svg>
-              Narration Only
+              Begin
             </button>
           </div>
-
-          <p className={styles.splashHint}>
-            You can change this anytime inside the story.
-          </p>
         </div>
       </div>
     </div>

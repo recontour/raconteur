@@ -38,36 +38,6 @@
   color: rgba(210, 175, 100, 0.55);
 }
 
-/* ── Ambient music toggle — top left ─────────────────────────────────────── */
-.musicToggle {
-  position: absolute;
-  top: 14px;
-  left: 16px;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  padding: 0;
-  color: rgba(100, 65, 25, 0.52);
-  transition: color 0.2s ease, opacity 0.2s ease;
-}
-
-.musicToggle:hover {
-  color: rgba(100, 65, 25, 0.85);
-}
-
-.frame:has([data-dark="true"][aria-hidden="false"]) .musicToggle {
-  color: rgba(210, 175, 100, 0.55);
-}
-
-.frame:has([data-dark="true"][aria-hidden="false"]) .musicToggle:hover {
-  color: rgba(210, 175, 100, 0.9);
-}
 
 /* ── Individual card — stacked, full frame ────────────────────────────────── */
 .card {
