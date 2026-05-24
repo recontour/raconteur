@@ -57,20 +57,16 @@ export function useSwipeGesture({
   );
 
   useEffect(() => {
-    const element = document.addEventListener
-      ? document
-      : window;
-
-    element.addEventListener("touchstart", handleTouchStart, false);
-    element.addEventListener("touchend", handleTouchEnd, false);
-    element.addEventListener("wheel", handleWheel, {
+    document.addEventListener("touchstart", handleTouchStart, false);
+    document.addEventListener("touchend", handleTouchEnd, false);
+    document.addEventListener("wheel", handleWheel, {
       passive: false,
     });
 
     return () => {
-      element.removeEventListener("touchstart", handleTouchStart);
-      element.removeEventListener("touchend", handleTouchEnd);
-      element.removeEventListener("wheel", handleWheel);
+      document.removeEventListener("touchstart", handleTouchStart);
+      document.removeEventListener("touchend", handleTouchEnd);
+      document.removeEventListener("wheel", handleWheel);
     };
   }, [handleTouchStart, handleTouchEnd, handleWheel]);
 }

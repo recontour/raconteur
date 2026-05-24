@@ -15,7 +15,6 @@ const stories = storyData.paragraphs.map((p) => ({
   paragraph: p.text,
   mood: p.mood,
   audioFile: p.audio,
-  vttFile: `/audio/${p.slug}.vtt`,
   duration: p.duration ?? 0,
   subtitles: [] as Array<{ time: number; text: string }>,
 }));
