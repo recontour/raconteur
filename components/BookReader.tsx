@@ -5,6 +5,9 @@ import AudioPlayer from "./AudioPlayer";
 import BookBackground from "./BookBackground";
 import SyncParagraph, { WordTiming } from "./SyncParagraph";
 import styles from "./BookReader.module.css";
+import { useAuth } from "@/app/helper/auth";
+import { signOut } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface Story {
@@ -105,6 +108,7 @@ export default function BookReader({ stories }: BookReaderProps) {
 
   const total   = stories.length;
   const current = stories[page];
+  const { user }  = useAuth();
 
   return (
     <div className={styles.root}>
@@ -113,6 +117,18 @@ export default function BookReader({ stories }: BookReaderProps) {
 
       {/* Portrait 480px frame */}
       <div className={styles.frame}>
+
+        {/* User avatar — top left */}
+        <button className={styles.avatarBtn} aria-label="Sign out" onClick={() => signOut(auth)}>
+          {user?.photoURL ? (
+            <img src={user.photoURL} alt="" referrerPolicy="no-referrer" />
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="20" height="20">
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" strokeLinecap="round" />
+            </svg>
+          )}
+        </button>
 
         {/* Page counter — top right, like a book header */}
         <div className={styles.pageCounter}>
