@@ -5,6 +5,7 @@ import AudioPlayer from "./AudioPlayer";
 import BookBackground from "./BookBackground";
 import SyncParagraph, { WordTiming } from "./SyncParagraph";
 import styles from "./BookReader.module.css";
+import { useMoodMusic } from "@/hooks/useMoodMusic";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface Story {
@@ -106,6 +107,8 @@ export default function BookReader({ stories }: BookReaderProps) {
   const total   = stories.length;
   const current = stories[page];
 
+  const { enabled: musicOn, toggle: toggleMusic } = useMoodMusic(current.mood ?? "dawn");
+
   return (
     <div className={styles.root}>
       {/* WebGL parchment background */}
@@ -118,6 +121,29 @@ export default function BookReader({ stories }: BookReaderProps) {
         <div className={styles.pageCounter}>
           {String(page + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
         </div>
+
+        {/* Ambient music toggle — top left */}
+        <button
+          className={styles.musicToggle}
+          onClick={toggleMusic}
+          aria-label={musicOn ? "Mute ambient music" : "Play ambient music"}
+          aria-pressed={musicOn}
+        >
+          {musicOn ? (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="15" height="15">
+              <path d="M9 18V5l12-2v13" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="6" cy="18" r="3" />
+              <circle cx="18" cy="16" r="3" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="15" height="15">
+              <path d="M9 18V5l12-2v13" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="6" cy="18" r="3" />
+              <circle cx="18" cy="16" r="3" />
+              <line x1="3" y1="3" x2="21" y2="21" strokeLinecap="round" />
+            </svg>
+          )}
+        </button>
 
         {stories.map((story, idx) => {
           const isDark   = DARK_MOODS.has(story.mood ?? "");
