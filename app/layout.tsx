@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/app/helper/auth";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
   title: "Raconteur | Immersive Storytelling",
   description: "Experience captivating stories like never before. Raconteur blends rich narratives with interactive audio and visual elements for a truly immersive journey.",
   openGraph: {

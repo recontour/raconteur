@@ -1,6 +1,6 @@
 {
     "name": "raconteur",
-    "version": "0.1.0",
+    "version": "1.1.0",
     "private": true,
     "scripts": {
         "dev": "next dev",
@@ -17,7 +17,7 @@
         "next": "16.2.6",
         "react": "19.2.6",
         "react-dom": "19.2.6",
-        "three": "^0.184.0"
+        "three": "^0.183.0"
     },
     "devDependencies": {
         "@types/node": "^20",
