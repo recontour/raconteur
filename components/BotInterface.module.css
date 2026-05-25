@@ -1,0 +1,232 @@
+.container {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  overflow: hidden;
+  background-color: #ffffff;
+  color: #1d1d1f;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  z-index: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  padding-top: 2.5rem;
+  padding-bottom: 1rem;
+  width: 100%;
+  text-align: center;
+  z-index: 10;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #1d1d1f;
+  opacity: 0.8;
+}
+
+.layout {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0 1.5rem 2rem 1.5rem; /* Decent gap from screen edges */
+  gap: 1.25rem;
+  max-width: 600px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.topBubble {
+  flex: 1;
+  background-color: #f2f2f7; /* Very light gray */
+  border-radius: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem;
+  transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.3s ease;
+  /* subtle Apple-like depth */
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.04), inset 0 2px 0 rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.02);
+}
+
+.optionsRow {
+  display: flex;
+  gap: 1.25rem;
+  width: 100%;
+}
+
+.optionsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  width: 100%;
+}
+
+.optionsGrid .bottomBubble {
+  aspect-ratio: auto;
+  min-height: 80px;
+  padding: 1rem;
+  border-radius: 24px;
+}
+
+.ragContainer {
+  margin-top: 1rem;
+  width: 100%;
+}
+
+.bottomBubble {
+  flex: 1;
+  aspect-ratio: 1 / 1;
+  background-color: #f5f5f7;
+  border-radius: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  border: 1px solid rgba(0, 0, 0, 0.02);
+  cursor: pointer;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.04), inset 0 2px 0 rgba(255, 255, 255, 0.8);
+  transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1), background-color 0.2s ease, opacity 0.3s ease;
+  font-family: inherit;
+  color: #1d1d1f;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent; /* Remove mobile flash */
+}
+
+.bottomBubble:hover {
+  background-color: #e5e5ea;
+}
+
+.bottomBubble:active {
+  transform: scale(0.95);
+}
+
+.bottomBubble:disabled {
+  opacity: 0.6;
+  cursor: default;
+  transform: none;
+}
+
+.blobContent {
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* Text styling */
+.topBubble .textTransition {
+  font-size: 1.35rem;
+  line-height: 1.45;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: #1d1d1f;
+}
+
+.bottomBubble .textTransition {
+  font-size: 1.1rem;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  color: #1d1d1f;
+}
+
+/* Animations */
+.textTransition {
+  animation: fadeText 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes fadeText {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.exiting {
+  opacity: 0;
+  transform: scale(0.97);
+}
+
+/* Hive Loading Animation (3 dots pulse) */
+.hiveLoader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 32px;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  background-color: #1d1d1f;
+  border-radius: 50%;
+  animation: hivePulse 1.4s infinite ease-in-out both;
+}
+
+.dot:nth-child(1) { animation-delay: -0.32s; }
+.dot:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes hivePulse {
+  0%, 80%, 100% {
+    transform: scale(0);
+    opacity: 0.3;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+}
+
+/* Mobile height fixes */
+@media (max-height: 700px) {
+  .layout {
+    gap: 1rem;
+    padding: 0 1rem 1rem 1rem;
+  }
+  .topBubble {
+    padding: 1.5rem;
+  }
+  .optionsRow {
+    gap: 1rem;
+  }
+}
+
+/* ── Snail Paced Initial Load Animations ── */
+
+.initialTopBubble {
+  opacity: 0;
+  animation: snailFadeIn 3s 1.5s forwards ease-in-out;
+}
+
+.initialBottomBubble0 {
+  opacity: 0;
+  animation: snailFadeIn 3s 4s forwards ease-in-out;
+}
+
+.initialBottomBubble1 {
+  opacity: 0;
+  animation: snailFadeIn 3s 5s forwards ease-in-out;
+}
+
+@keyframes snailFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

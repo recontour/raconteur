@@ -41,9 +41,103 @@
     0 8px 32px rgba(0, 0, 0, 0.08),
     0 2px 8px rgba(0, 0, 0, 0.04),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  animation: fadeUp 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: fadeIn 1.5s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* ── Scenario Card (extends Splash Card) ─────────────────────────────────── */
+.scenarioContainer {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  pointer-events: auto;
+}
+
+.scenarioCard {
+  text-align: left;
+  align-items: flex-start;
+  max-width: 100%;
+  animation: fadeIn 1.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.cinematicTitle {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  color: #111827;
+  align-self: flex-start;
+  opacity: 0;
+  animation: fadeIn 2.5s 0.5s forwards ease-in-out;
+}
+
+.cinematicText {
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+  color: #4b5563;
+  opacity: 0;
+  animation: fadeIn 3.5s 1.5s forwards ease-in-out;
+}
+
+.optionsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  opacity: 0;
+  animation: fadeIn 2s forwards ease-in-out;
+}
+
+.optionsSubmitting {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* ── Loading Ring (Bubbles) ──────────────────────────────────────────────── */
+.loadingRingContainer {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 1rem 0;
+  opacity: 0;
+  animation: fadeIn 1.5s 4.5s forwards ease-in-out; /* Fades in after text finishes */
+}
+
+.bubblesRing {
+  display: inline-block;
+  position: relative;
+  width: 64px;
+  height: 64px;
+}
+.bubblesRing div {
+  box-sizing: border-box;
+  display: block;
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  margin: 12px;
+  border: 4px solid var(--rc-ink, #333);
+  border-radius: 50%;
+  animation: bubblesRing 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+  border-color: var(--rc-ink, #333) transparent transparent transparent;
+}
+.bubblesRing div:nth-child(1) {
+  animation-delay: -0.45s;
+}
+.bubblesRing div:nth-child(2) {
+  animation-delay: -0.3s;
+}
+.bubblesRing div:nth-child(3) {
+  animation-delay: -0.15s;
+}
+
+@keyframes bubblesRing {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* ── Typography and other existing classes ───────────────────────────────── */
 .wordmark {
   margin: 0;
   font-family: Georgia, 'Times New Roman', serif;
@@ -121,26 +215,6 @@
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
 }
 
-.splashBtnMute {
-  background: rgba(255, 255, 255, 0.85);
-  color: var(--rc-ink);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07);
-  border: 1px solid rgba(60, 60, 67, 0.12);
-}
-
-.splashBtnMute:hover {
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
-}
-
-.splashHint {
-  margin: 0;
-  font-size: 0.72rem;
-  color: var(--rc-ink-3);
-  text-align: center;
-  letter-spacing: -0.1px;
-  animation: fadeUp 0.9s 0.3s cubic-bezier(0.22, 1, 0.36, 1) backwards;
-}
-
 @keyframes fadeUp {
   from {
     opacity: 0;
@@ -150,6 +224,24 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+@keyframes fadeUpText {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* Responsive */

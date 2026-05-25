@@ -2,10 +2,11 @@
 
 import { Canvas, useFrame } from "@react-three/fiber";
 import { PerspectiveCamera } from "@react-three/drei";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import * as THREE from "three";
 import styles from "./WebGLScene.module.css";
+import Context, { RagDocument } from "@/components/Context";
 
 interface WebGLSceneProps {
   isLoggedIn: boolean;
@@ -102,13 +103,78 @@ function Scene() {
 
 export default function WebGLScene_({ isLoggedIn }: WebGLSceneProps) {
   const router = useRouter();
+  const [step, setStep] = useState<'splash' | 'genre_selection' | 'scenario'>('splash');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [ragContext, setRagContext] = useState<RagDocument[]>([]);
 
-  const handleBegin = () => {
+  // Cinematic state
+  const [showText, setShowText] = useState(false);
+  const [showOptions, setShowOptions] = useState(false);
+
+  const handleRead = () => {
     if (isLoggedIn) {
       router.push("/book");
     } else {
       router.push("/auth");
     }
+  };
+
+  const handleNewStory = () => {
+    setStep('genre_selection');
+  };
+
+  const handleGenreSelect = async (genre: string) => {
+    setIsSubmitting(true);
+    
+    // MOCK SERVER ACTION: Write user genre choice to DB
+    console.log("Saving user genre choice to database...", genre);
+    await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network latency
+    
+    // UPDATE INDEX / RAG CONTEXT
+    const newContextDoc: RagDocument = {
+      id: Date.now().toString(),
+      content: `The user requested a new story with the genre: ${genre}`,
+      metadata: { source: "User Preferences DB", type: "Genre Choice" },
+      score: 1.0
+    };
+    
+    setRagContext(prev => [newContextDoc, ...prev]);
+    setIsSubmitting(false);
+
+    // After picking a genre, we could start the scenario, but for now we'll just acknowledge it
+    // and let them see the RAG context update.
+    setStep('scenario');
+    setShowText(false);
+    setShowOptions(false);
+    setTimeout(() => setShowText(true), 100);
+    setTimeout(() => setShowOptions(true), 10000);
+  };
+
+  const handleOptionSelect = async (optionText: string) => {
+    setIsSubmitting(true);
+    
+    // MOCK SERVER ACTION: Write user choice to DB
+    console.log("Saving user choice to database...", optionText);
+    await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network latency
+    
+    // UPDATE INDEX / RAG CONTEXT
+    const newContextDoc: RagDocument = {
+      id: Date.now().toString(),
+      content: `The user decided to: ${optionText}`,
+      metadata: { source: "User History DB", type: "Choice" },
+      score: 1.0
+    };
+    
+    setRagContext(prev => [newContextDoc, ...prev]);
+    setIsSubmitting(false);
+
+    // Reset cinematic state for the next chunk (mocking the progression)
+    setShowText(false);
+    setShowOptions(false);
+    
+    // Simulate loading the next scenario text
+    setTimeout(() => setShowText(true), 300);
+    setTimeout(() => setShowOptions(true), 10000); // 10 second delay for options
   };
 
   return (
@@ -117,39 +183,122 @@ export default function WebGLScene_({ isLoggedIn }: WebGLSceneProps) {
         <Scene />
       </Canvas>
 
-      {/* Splash overlay */}
       <div className={styles.overlay}>
-        <div className={styles.splashCard}>
-          {/* Wordmark */}
-          <p className={styles.wordmark}>Raconteur</p>
+        {step === 'splash' && (
+          <div className={styles.splashCard}>
+            <p className={styles.wordmark}>Raconteur</p>
 
-          {/* Headphone icon */}
-          <div className={styles.splashIcon}>
-            <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2.2" width="52" height="52" aria-hidden="true">
-              <path d="M8 28V24C8 15.163 15.163 8 24 8s16 7.163 16 16v4" strokeLinecap="round" strokeLinejoin="round" />
-              <rect x="4" y="26" width="8" height="14" rx="4" />
-              <rect x="36" y="26" width="8" height="14" rx="4" />
-            </svg>
+            <div className={styles.splashIcon}>
+              <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2.2" width="52" height="52" aria-hidden="true">
+                <path d="M8 28V24C8 15.163 15.163 8 24 8s16 7.163 16 16v4" strokeLinecap="round" strokeLinejoin="round" />
+                <rect x="4" y="26" width="8" height="14" rx="4" />
+                <rect x="36" y="26" width="8" height="14" rx="4" />
+              </svg>
+            </div>
+
+            <h1 className={styles.splashHeadline}>
+              Welcome to Raconteur
+            </h1>
+            <p className={styles.splashSub} style={{ marginBottom: '1rem' }}>
+              Dive into an interactive, dynamically generated audio experience. 
+              Your choices shape the narrative, and every decision is remembered 
+              to craft a unique story tailored just for you. What would you like to do today?
+            </p>
+
+            <div className={styles.splashButtons} style={{ flexDirection: 'column' }}>
+              <button
+                className={styles.splashBtn}
+                onClick={handleRead}
+                aria-label="Read your current story"
+                style={{ width: '100%' }}
+              >
+                Continue Reading
+              </button>
+              <button
+                className={`${styles.splashBtn} ${styles.splashBtnMute}`}
+                onClick={handleNewStory}
+                aria-label="Start a new story"
+                style={{ width: '100%' }}
+              >
+                Start a New Story
+              </button>
+            </div>
           </div>
+        )}
 
-          <h1 className={styles.splashHeadline}>
-            Best experienced<br />with headphones
-          </h1>
-          <p className={styles.splashSub}>
-            Narration included. Best with headphones.
-          </p>
+        {step === 'genre_selection' && (
+          <div className={styles.scenarioContainer}>
+            <div className={`${styles.splashCard} ${styles.scenarioCard}`} style={{ animation: 'fadeIn 1s ease-in-out' }}>
+              <h2 style={{ fontSize: "1.5rem", marginBottom: "1rem", color: "#111827", alignSelf: "flex-start" }}>
+                What do you want your next story to be?
+              </h2>
+              <p style={{ marginBottom: "1.5rem", lineHeight: 1.6, color: "#4b5563" }}>
+                Select a genre below. We will use this selection as the foundational context 
+                to generate the beginning of your new adventure.
+              </p>
+              
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", width: "100%" }}>
+                {["Science Fiction", "High Fantasy", "Cyberpunk", "Mystery Thriller", "Historical Fiction", "Horror"].map(genre => (
+                  <button 
+                    key={genre}
+                    className={styles.splashBtn} 
+                    disabled={isSubmitting}
+                    onClick={() => handleGenreSelect(genre)}
+                    style={{ padding: "12px 16px", minHeight: "60px" }}
+                  >
+                    {isSubmitting ? "Saving..." : genre}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-          {/* Begin button */}
-          <div className={styles.splashButtons}>
-            <button
-              className={styles.splashBtn}
-              onClick={handleBegin}
-              aria-label="Begin the story"
-            >
-              Begin
-            </button>
+            <Context documents={ragContext} isLoading={isSubmitting} />
           </div>
-        </div>
+        )}
+
+        {step === 'scenario' && (
+          <div className={styles.scenarioContainer}>
+            <div className={`${styles.splashCard} ${styles.scenarioCard}`}>
+              {showText && (
+                <>
+                  <h2 className={styles.cinematicTitle}>Chapter 1: The Beginning</h2>
+                  <p className={styles.cinematicText}>
+                    The world takes shape around you based on your chosen path. The air is thick with anticipation, and the faint sound of a distant challenge echoes. Two paths lay before you, branching out into the unknown.
+                  </p>
+                </>
+              )}
+              
+              {!showOptions && showText && (
+                <div className={styles.loadingRingContainer}>
+                  <div className={styles.bubblesRing}>
+                    <div></div><div></div><div></div><div></div>
+                  </div>
+                </div>
+              )}
+
+              {showOptions && (
+                <div className={`${styles.optionsContainer} ${isSubmitting ? styles.optionsSubmitting : ''}`}>
+                  <button 
+                    className={styles.splashBtn} 
+                    disabled={isSubmitting}
+                    onClick={() => handleOptionSelect("Venture boldly forward into the danger.")}
+                  >
+                    {isSubmitting ? "Saving..." : "Option A: Venture boldly forward"}
+                  </button>
+                  <button 
+                    className={styles.splashBtn} 
+                    disabled={isSubmitting}
+                    onClick={() => handleOptionSelect("Carefully observe and look for clues.")}
+                  >
+                    {isSubmitting ? "Saving..." : "Option B: Carefully observe your surroundings"}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <Context documents={ragContext} isLoading={isSubmitting} />
+          </div>
+        )}
       </div>
     </div>
   );
