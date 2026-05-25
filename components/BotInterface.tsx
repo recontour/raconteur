@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import styles from "./BotInterface.module.css";
 import { useRouter } from "next/navigation";
+// Open-Meteo is used for weather (free, no API key required)
 import { useAuth } from "@/app/helper/auth";
 import Context, { RagDocument } from "@/components/Context";
 import {
@@ -13,8 +14,9 @@ import {
   GoogleAuthProvider,
   linkWithPopup,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, arrayUnion } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import { writeRagData } from "@/components/RAGdata";
 
 // ── Auth step types ────────────────────────────────────────────────────────
 type AuthStep =
@@ -25,6 +27,75 @@ type AuthStep =
   | "link-google"
   | "entering"
   | null;
+
+// ── Dialogue types & constants ───────────────────────────────────────────────
+interface DialogueStep {
+  id: string;
+  ai: string;
+  options: string[];
+  type: "row" | "grid";
+}
+
+const FLOW_ID = "main";
+
+const WELCOME_STEP: DialogueStep = {
+  id: "welcome",
+  ai: "Welcome to Raconteur. What would you like to do today?",
+  options: ["Continue Reading", "Start a New Story"],
+  type: "grid",
+};
+
+const HERO_STEP: DialogueStep = {
+  id: "hero",
+  ai: "Every story needs a hero.",
+  options: ["🌤 Weather near me", "Create avatar"],
+  type: "row",
+};
+
+const AVATAR_STEP: DialogueStep = {
+  id: "avatar",
+  ai: "Choose your avatar:",
+  options: [
+    "Sir Fluffington",
+    "Captain Chuckle",
+    "Count Quackula",
+    "Baron Von Bop",
+    "Professor Puddle",
+    "Lord Wiggles",
+    "Doctor Doofus",
+    "Madam Mischief",
+    "Cancel"
+  ],
+  type: "grid",
+};
+
+const weatherDescription = (code: number): string => {
+  if (code === 0)  return "☀️ Clear sky";
+  if (code <= 3)   return "⛅ Partly cloudy";
+  if (code <= 49)  return "🌫️ Fog";
+  if (code <= 59)  return "🌦️ Drizzle";
+  if (code <= 69)  return "🌧️ Rain";
+  if (code <= 79)  return "❄️ Snow";
+  if (code <= 82)  return "🌧️ Rain showers";
+  if (code <= 84)  return "🌨️ Snow showers";
+  if (code <= 99)  return "⛈️ Thunderstorm";
+  return "☁️ Overcast";
+};
+
+const DEFAULT_FLOW_STEPS: DialogueStep[] = [
+  {
+    id: "genre",
+    ai: "What do you want your next story to be?",
+    options: ["Science Fiction", "High Fantasy", "Cyberpunk", "Mystery Thriller", "Historical Fiction", "Horror"],
+    type: "grid",
+  },
+  {
+    id: "choice",
+    ai: "The world takes shape around you based on your chosen path. The air is thick with anticipation. Two paths lay before you.",
+    options: ["Venture boldly forward", "Carefully observe your surroundings"],
+    type: "row",
+  },
+];
 
 // ── Icons ──────────────────────────────────────────────────────────────────
 const GoogleIcon = ({ size = 18 }: { size?: number }) => (
@@ -65,6 +136,49 @@ export default function BotInterface() {
   const [authVia, setAuthVia] = useState<"phone" | "google" | null>(null);
   const confirmationRef = useRef<ConfirmationResult | null>(null);
   const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
+
+  // Weather state
+  const [weatherMessage, setWeatherMessage] = useState<string | null>(null);
+
+  // Writer / flow state
+  const [flowSteps, setFlowSteps] = useState<DialogueStep[]>(DEFAULT_FLOW_STEPS);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [writerOpen, setWriterOpen] = useState(false);
+  const [editableSteps, setEditableSteps] = useState<DialogueStep[]>([]);
+  const [writerSaving, setWriterSaving] = useState(false);
+
+  // ── Weather helper ───────────────────────────────────────────────────────
+  const handleWeatherClick = () => {
+    setLoading(true);
+    if (!navigator.geolocation) {
+      setWeatherMessage("Geolocation isn't supported by your browser.");
+      setLoading(false);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        try {
+          const res = await fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,weather_code,wind_speed_10m&timezone=auto`
+          );
+          const data = await res.json();
+          const temp = Math.round(data.current.temperature_2m as number);
+          const code = data.current.weather_code as number;
+          const wind = Math.round(data.current.wind_speed_10m as number);
+          setWeatherMessage(`${weatherDescription(code)}  ·  ${temp}°C  ·  Wind ${wind} km/h`);
+        } catch {
+          setWeatherMessage("Couldn't fetch weather right now. Try again later.");
+        }
+        setLoading(false);
+      },
+      () => {
+        setWeatherMessage("Location access was denied. Please allow it in your browser.");
+        setLoading(false);
+      },
+      { timeout: 10000 }
+    );
+  };
 
   // ── reCAPTCHA helpers ────────────────────────────────────────────────────
   const clearVerifier = () => {
@@ -217,26 +331,100 @@ export default function BotInterface() {
     finalizeAuth();
   };
 
-  // ── Story dialogue ───────────────────────────────────────────────────────
-  const dialogue = [
-    {
-      ai: "Welcome to Raconteur. What would you like to do today?",
-      options: ["Continue Reading", "Start a New Story"],
-      type: "row",
-    },
-    {
-      ai: "What do you want your next story to be?",
-      options: ["Science Fiction", "High Fantasy", "Cyberpunk", "Mystery Thriller", "Historical Fiction", "Horror"],
-      type: "grid",
-    },
-    {
-      ai: "The world takes shape around you based on your chosen path. The air is thick with anticipation. Two paths lay before you.",
-      options: ["Venture boldly forward", "Carefully observe your surroundings"],
-      type: "row",
-    },
-  ];
+  // ── Flow loading & admin check ─────────────────────────────────────────
+  useEffect(() => {
+    if (authStateLoading || !user) return;
+    const initialize = async () => {
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      if (userDoc.exists() && userDoc.data().isAdmin === true) setIsAdmin(true);
 
-  const currentDialogue = dialogue[step];
+      const flowDoc = await getDoc(doc(db, "dialogueFlows", FLOW_ID));
+      if (flowDoc.exists()) {
+        const data = flowDoc.data();
+        if (Array.isArray(data.steps) && data.steps.length > 0) {
+          setFlowSteps(data.steps as DialogueStep[]);
+        }
+      }
+    };
+    initialize();
+  }, [user, authStateLoading]);
+
+  // ── Save user choice to Firestore ──────────────────────────────────────
+  const saveUserChoice = async (stepId: string, option: string) => {
+    if (!auth.currentUser) return;
+    await setDoc(doc(db, "userSessions", auth.currentUser.uid), {
+      flowId: FLOW_ID,
+      history: arrayUnion({ stepId, option, timestamp: new Date().toISOString() }),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  };
+
+  // ── Writer mode helpers ───────────────────────────────────────────────────
+  const openWriterMode = () => {
+    setEditableSteps(JSON.parse(JSON.stringify(flowSteps)));
+    setWriterOpen(true);
+  };
+
+  const handleSaveFlow = async () => {
+    if (!isAdmin || writerSaving) return;
+    setWriterSaving(true);
+    try {
+      await setDoc(doc(db, "dialogueFlows", FLOW_ID), {
+        steps: editableSteps,
+        updatedAt: serverTimestamp(),
+        updatedBy: auth.currentUser?.uid,
+      }, { merge: true });
+      setFlowSteps(editableSteps);
+      setWriterOpen(false);
+    } finally {
+      setWriterSaving(false);
+    }
+  };
+
+  const updateStep = (idx: number, updates: Partial<DialogueStep>) =>
+    setEditableSteps(prev => prev.map((s, i) => i === idx ? { ...s, ...updates } : s));
+
+  const updateOption = (si: number, oi: number, val: string) =>
+    setEditableSteps(prev => prev.map((s, i) => {
+      if (i !== si) return s;
+      const opts = [...s.options]; opts[oi] = val; return { ...s, options: opts };
+    }));
+
+  const addOption = (si: number) =>
+    setEditableSteps(prev => prev.map((s, i) =>
+      i === si ? { ...s, options: [...s.options, ""] } : s
+    ));
+
+  const removeOption = (si: number, oi: number) =>
+    setEditableSteps(prev => prev.map((s, i) =>
+      i === si ? { ...s, options: s.options.filter((_, j) => j !== oi) } : s
+    ));
+
+  const addStep = () =>
+    setEditableSteps(prev => [...prev, {
+      id: `step_${Date.now()}`,
+      ai: "",
+      options: [""],
+      type: "row" as const,
+    }]);
+
+  const removeStep = (idx: number) =>
+    setEditableSteps(prev => prev.filter((_, i) => i !== idx));
+
+  // ── Story dialogue ───────────────────────────────────────────────────────
+  // Step 0 is always the welcome/routing step (hardcoded).
+  // Steps -1 and -2 are new flow steps before starting a new story
+  // Steps 1+ map to flowSteps[step - 1] fetched from Firestore.
+  let currentDialogue = WELCOME_STEP;
+  if (step === 0) currentDialogue = WELCOME_STEP;
+  else if (step === -1) currentDialogue = HERO_STEP;
+  else if (step === -2) currentDialogue = AVATAR_STEP;
+  else currentDialogue = flowSteps[step - 1] ?? WELCOME_STEP;
+
+  // When weather has been fetched, swap the AI message and collapse back to 2 options
+  const displayDialogue = (weatherMessage && step === -1)
+    ? { ...HERO_STEP, ai: weatherMessage, options: ["🌤 Weather near me", "Create avatar"], type: "row" as const }
+    : currentDialogue;
 
   const transitionToStep = (nextStep: number) => {
     setExiting(true);
@@ -253,54 +441,171 @@ export default function BotInterface() {
     if (step === 0) {
       if (option === "Continue Reading") {
         if (authStateLoading) return;
-        if (user) {
-          router.push("/book");
-          return;
-        }
-        // Not authenticated — open inline auth panel
+        if (user) { router.push("/book"); return; }
         setAuthStep("method");
         return;
       }
       if (option === "Start a New Story") {
         setLoading(true);
-        setTimeout(() => transitionToStep(1), 800);
+        setTimeout(() => transitionToStep(-1), 800);
         return;
       }
     }
 
-    if (step === 1) {
+    if (step === -1) {
+      if (option === "🌤 Weather near me") {
+        handleWeatherClick();
+        return;
+      }
+      if (option === "Create avatar") {
+        setLoading(true);
+        setTimeout(() => transitionToStep(-2), 800);
+        return;
+      }
+    }
+
+    if (step === -2) {
+      if (option === "Cancel") {
+        setLoading(true);
+        setTimeout(() => transitionToStep(-1), 800);
+        return;
+      }
+
       setLoading(true);
       setIsSubmitting(true);
-      console.log("Saving user genre choice to database...", option);
-      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Save avatar selection using RAGdata
+      if (auth.currentUser) {
+        await writeRagData(auth.currentUser.uid, "avatar_selection", { avatar: option });
+      }
+
+      // Append to local RAG context
       const newContextDoc: RagDocument = {
         id: Date.now().toString(),
-        content: `The user requested a new story with the genre: ${option}`,
-        metadata: { source: "User Preferences DB", type: "Genre Choice" },
+        content: `Selected Avatar: ${option}`,
+        metadata: { source: `Avatar Creation`, type: "Avatar Choice" },
         score: 1.0,
       };
       setRagContext(prev => [newContextDoc, ...prev]);
+
       setIsSubmitting(false);
-      transitionToStep(2);
+      setTimeout(() => transitionToStep(1), 800);
       return;
     }
 
-    if (step === 2) {
+    // Story flow — steps 1+ are dynamic from Firestore
+    if (step >= 1) {
+      const flowStepIndex = step - 1;
+      const currentFlowStep = flowSteps[flowStepIndex];
       setLoading(true);
       setIsSubmitting(true);
-      console.log("Saving user choice to database...", option);
-      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Persist choice to Firestore
+      await saveUserChoice(currentFlowStep.id, option);
+
+      // Append to local RAG context
       const newContextDoc: RagDocument = {
         id: Date.now().toString(),
-        content: `The user decided to: ${option}`,
-        metadata: { source: "User History DB", type: "Choice" },
+        content: `[${currentFlowStep.ai}] → ${option}`,
+        metadata: { source: `dialogueFlows/${FLOW_ID}`, type: "Story Choice", stepId: currentFlowStep.id },
         score: 1.0,
       };
       setRagContext(prev => [newContextDoc, ...prev]);
       setIsSubmitting(false);
-      transitionToStep(2);
+
+      // Advance to next step, or hold on last
+      const nextIdx = flowStepIndex + 1;
+      if (nextIdx < flowSteps.length) {
+        transitionToStep(step + 1);
+      } else {
+        transitionToStep(step);
+      }
       return;
     }
+  };
+
+  // ── Writer mode (admin only) ─────────────────────────────────────────────
+  const renderWriterMode = () => {
+    if (!writerOpen) return null;
+    return (
+      <div className={styles.writerOverlay}>
+        <div className={styles.writerPanel}>
+
+          <div className={styles.writerHeader}>
+            <span className={styles.writerTitle}>Writer Mode</span>
+            <div className={styles.writerHeaderActions}>
+              <button className={styles.writerSaveBtn} onClick={handleSaveFlow} disabled={writerSaving}>
+                {writerSaving ? "Saving…" : "Save Flow"}
+              </button>
+              <button className={styles.writerCloseBtn} onClick={() => setWriterOpen(false)} aria-label="Close">✕</button>
+            </div>
+          </div>
+
+          <div className={styles.writerStepList}>
+            {editableSteps.map((s, si) => (
+              <div key={s.id} className={styles.writerStepCard}>
+
+                <div className={styles.writerStepMeta}>
+                  <span className={styles.writerStepNum}>Step {si + 1}</span>
+                  <div className={styles.writerTypeToggle}>
+                    <button
+                      className={`${styles.writerTypeBtn} ${s.type === "row" ? styles.writerTypeBtnActive : ""}`}
+                      onClick={() => updateStep(si, { type: "row" })}
+                    >Row</button>
+                    <button
+                      className={`${styles.writerTypeBtn} ${s.type === "grid" ? styles.writerTypeBtnActive : ""}`}
+                      onClick={() => updateStep(si, { type: "grid" })}
+                    >Grid</button>
+                  </div>
+                  <button
+                    className={styles.writerDeleteStep}
+                    onClick={() => removeStep(si)}
+                    aria-label="Delete step"
+                    disabled={editableSteps.length <= 1}
+                  >✕</button>
+                </div>
+
+                <textarea
+                  className={styles.writerAiTextarea}
+                  value={s.ai}
+                  onChange={e => updateStep(si, { ai: e.target.value })}
+                  placeholder="AI message for this step…"
+                  rows={3}
+                />
+
+                <div className={styles.writerOptions}>
+                  {s.options.map((opt, oi) => (
+                    <div key={oi} className={styles.writerOptionRow}>
+                      <input
+                        className={styles.writerOptionInput}
+                        value={opt}
+                        onChange={e => updateOption(si, oi, e.target.value)}
+                        placeholder={`Option ${oi + 1}`}
+                      />
+                      <button
+                        className={styles.writerRemoveOption}
+                        onClick={() => removeOption(si, oi)}
+                        disabled={s.options.length <= 1}
+                        aria-label="Remove option"
+                      >−</button>
+                    </div>
+                  ))}
+                  <button className={styles.writerAddOption} onClick={() => addOption(si)}>
+                    + Option
+                  </button>
+                </div>
+
+              </div>
+            ))}
+          </div>
+
+          <button className={styles.writerAddStep} onClick={addStep}>
+            + Add Step
+          </button>
+
+        </div>
+      </div>
+    );
   };
 
   // ── Auth overlay ─────────────────────────────────────────────────────────
@@ -495,6 +800,14 @@ export default function BotInterface() {
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <div className={styles.container}>
+
+      {/* Admin — writer mode trigger */}
+      {isAdmin && !writerOpen && (
+        <button className={styles.writerTrigger} onClick={openWriterMode} aria-label="Open Writer Mode">
+          ✦ Writer
+        </button>
+      )}
+
       <div className={styles.header}>
         <h1>Raconteur</h1>
       </div>
@@ -513,16 +826,16 @@ export default function BotInterface() {
                 <div className={styles.dot}></div>
               </div>
             ) : (
-              <div className={styles.textTransition} key={currentDialogue.ai}>
-                {currentDialogue.ai}
+              <div className={styles.textTransition} key={displayDialogue.ai}>
+                {displayDialogue.ai}
               </div>
             )}
           </div>
         </div>
 
         {/* Bottom Bubbles */}
-        <div className={currentDialogue.type === "grid" ? styles.optionsGrid : styles.optionsRow}>
-          {currentDialogue.options.map((option, index) => (
+        <div className={displayDialogue.type === "grid" ? styles.optionsGrid : styles.optionsRow}>
+          {displayDialogue.options.map((option, index) => (
             <button
               key={`btn-${step}-${option}`}
               className={`${styles.bottomBubble} ${exiting ? styles.exiting : styles.enteringBottom}`}
@@ -547,6 +860,9 @@ export default function BotInterface() {
 
       {/* Inline auth overlay */}
       {renderAuth()}
+
+      {/* Admin writer mode overlay */}
+      {renderWriterMode()}
     </div>
   );
 }
