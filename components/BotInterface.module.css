@@ -156,8 +156,11 @@
 }
 
 .exiting {
-  opacity: 0;
-  transform: scale(0.97);
+  animation: none !important;
+  opacity: 0 !important;
+  transform: scale(0.97) !important;
+  pointer-events: none;
+  transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.3s ease !important;
 }
 
 /* Hive Loading Animation (3 dots pulse) */
@@ -205,17 +208,35 @@
   }
 }
 
-/* ── Snail Paced Initial Load Animations ── */
+/* ── Universal Step Animations ── */
 
-.initialTopBubble {
-  opacity: 0;
-  animation: snailFadeIn 3s 1.5s forwards ease-in-out;
+.enteringTop {
+  animation: mainBubbleEnter 2.5s ease-in-out forwards;
 }
 
-.initialBottomBubble0 {
-  opacity: 0;
-  animation: snailFadeIn 3s 4s forwards ease-in-out;
+@keyframes mainBubbleEnter {
+  0% {
+    opacity: 0.2;
+  }
+  100% {
+    opacity: 1;
+  }
 }
+
+.enteringBottom {
+  opacity: 0;
+  animation: bottomBubbleEnter 1s ease-in-out forwards;
+}
+
+@keyframes bottomBubbleEnter {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
 
 .initialBottomBubble1 {
   opacity: 0;

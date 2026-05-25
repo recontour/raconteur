@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import styles from "./BotInterface.module.css";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/helper/auth";
@@ -15,16 +15,6 @@ export default function BotInterface() {
   const [exiting, setExiting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [ragContext, setRagContext] = useState<RagDocument[]>([]);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
-
-  useEffect(() => {
-    // Let the initial animations run, then remove the initial load state 
-    // so future steps don't have delays.
-    const timer = setTimeout(() => {
-      setIsInitialLoad(false);
-    }, 10000); 
-    return () => clearTimeout(timer);
-  }, []);
 
   const dialogue = [
     {
@@ -131,9 +121,8 @@ export default function BotInterface() {
       <div className={styles.layout}>
         {/* Top Bubble */}
         <div 
-          className={`${styles.topBubble} ${exiting ? styles.exiting : ""} ${
-            step === 0 && isInitialLoad ? styles.initialTopBubble : ""
-          }`}
+          key={`top-${step}`}
+          className={`${styles.topBubble} ${exiting ? styles.exiting : styles.enteringTop}`}
         >
           <div className={styles.blobContent}>
             {loading ? (
@@ -154,10 +143,9 @@ export default function BotInterface() {
         <div className={currentDialogue.type === "grid" ? styles.optionsGrid : styles.optionsRow}>
           {currentDialogue.options.map((option, index) => (
             <button
-              key={option}
-              className={`${styles.bottomBubble} ${exiting ? styles.exiting : ""} ${
-                step === 0 && isInitialLoad ? styles[`initialBottomBubble${index}`] : ""
-              }`}
+              key={`btn-${step}-${option}`}
+              className={`${styles.bottomBubble} ${exiting ? styles.exiting : styles.enteringBottom}`}
+              style={{ animationDelay: `${3 + index * 0.5}s` }}
               onClick={() => handleOptionClick(option)}
               disabled={loading || isSubmitting}
             >
