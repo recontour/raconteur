@@ -82,6 +82,26 @@ export default function BookReader({ stories }: BookReaderProps) {
   const didNavigate          = useRef(false);
   const dbSaveTimerRef       = useRef<ReturnType<typeof setTimeout> | null>(null);
   const progressRestoredRef  = useRef(false);
+  const pickerRef            = useRef<HTMLDivElement>(null);
+
+  const [maxPage, setMaxPage]       = useState(0);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Track the highest page ever visited to unlock chapter picker
+  useEffect(() => {
+    setMaxPage((m) => Math.max(m, page));
+  }, [page]);
+
+  // Close picker on outside click
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node))
+        setPickerOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [pickerOpen]);
 
   // ── Restore progress: DB first, localStorage fallback ─────────────────
   useEffect(() => {
@@ -194,8 +214,33 @@ export default function BookReader({ stories }: BookReaderProps) {
         </button>
 
         {/* Page counter — top right, like a book header */}
-        <div className={styles.pageCounter}>
-          {String(page + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
+        <div ref={pickerRef} className={styles.pageCounterWrap}>
+          <button
+            className={styles.pageCounter}
+            onClick={() => maxPage > 0 && setPickerOpen((o) => !o)}
+            aria-label="Chapter list"
+            aria-expanded={pickerOpen}
+          >
+            {String(page + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
+          </button>
+
+          {pickerOpen && (
+            <div className={styles.chapterPicker}>
+              {stories.slice(0, maxPage + 1).map((story, idx) => (
+                <button
+                  key={idx}
+                  className={styles.chapterPickerItem}
+                  data-active={idx === page ? "true" : undefined}
+                  onClick={() => { navigate(idx); setPickerOpen(false); }}
+                >
+                  <span className={styles.chapterPickerNum}>
+                    {String(idx + 1).padStart(2, "0")}
+                  </span>
+                  <span>{story.title}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {stories.map((story, idx) => {
