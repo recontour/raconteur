@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { auth } from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
 import BookReader from "@/components/BookReader";
+import { useAuth } from "@/app/helper/auth";
 import storyData from "@/data/entireStory.json";
 
 // Adapt entireStory paragraphs to the BookReader Story shape
@@ -20,23 +19,14 @@ const stories = storyData.paragraphs.map((p) => ({
 }));
 
 export default function BookPage() {
+  const { user, loading } = useAuth();
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setIsAuthenticated(true);
-        setIsLoading(false);
-      } else {
-        router.push("/auth");
-      }
-    });
-    return () => unsubscribe();
-  }, [router]);
+    if (!loading && !user) router.replace("/");
+  }, [user, loading, router]);
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div
         style={{
@@ -56,7 +46,7 @@ export default function BookPage() {
     );
   }
 
-  if (!isAuthenticated) return null;
+  if (!user) return null; // redirect is in-flight
 
   return <BookReader stories={stories} />;
 }

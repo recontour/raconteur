@@ -8,6 +8,7 @@ import styles from "./BookReader.module.css";
 import { useAuth } from "@/app/helper/auth";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { getStoryProgress, saveStoryProgress } from "@/app/actions/user";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface Story {
@@ -77,23 +78,62 @@ export default function BookReader({ stories }: BookReaderProps) {
 
   // Ref holds the time to seek to when the restored page's AudioPlayer mounts.
   // Cleared to 0 after any manual navigation so new pages always start from 0.
-  const initialTimeRef = useRef(0);
-  const didNavigate    = useRef(false);
+  const initialTimeRef       = useRef(0);
+  const didNavigate          = useRef(false);
+  const dbSaveTimerRef       = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const progressRestoredRef  = useRef(false);
 
-  // ── Restore progress from localStorage on mount ───────────────────────
+  // ── Restore progress: DB first, localStorage fallback ─────────────────
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(PROGRESS_KEY);
-      if (raw) {
-        const { page: p, time: t } = JSON.parse(raw) as { page: number; time: number };
+    const restore = async () => {
+      let progress: { page: number; time: number } | null = null;
+
+      if (user) {
+        progress = await getStoryProgress(user.uid);
+      }
+
+      if (!progress) {
+        try {
+          const raw = localStorage.getItem(PROGRESS_KEY);
+          if (raw) progress = JSON.parse(raw) as { page: number; time: number };
+        } catch {}
+      }
+
+      if (progress) {
+        const { page: p, time: t } = progress;
         if (typeof p === "number" && p >= 0 && p < stories.length) {
           initialTimeRef.current = typeof t === "number" && t > 0 ? t : 0;
           if (p !== 0) setPage(p);
         }
       }
-    } catch {}
+      progressRestoredRef.current = true;
+    };
+    restore();
+    return () => {
+      if (dbSaveTimerRef.current) clearTimeout(dbSaveTimerRef.current);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Persist progress to localStorage + DB (debounced 8s) ──────────────
+  const persistProgress = (p: number, t: number) => {
+    try { localStorage.setItem(PROGRESS_KEY, JSON.stringify({ page: p, time: t })); } catch {}
+    if (!user) return;
+    if (dbSaveTimerRef.current) clearTimeout(dbSaveTimerRef.current);
+    dbSaveTimerRef.current = setTimeout(() => {
+      saveStoryProgress(user.uid, p, t);
+    }, 8000);
+  };
+
+  // ── Save immediately to DB on manual page navigation ──────────────────
+  const navigate = (p: number) => {
+    didNavigate.current = true;
+    setPage(p);
+    try { localStorage.setItem(PROGRESS_KEY, JSON.stringify({ page: p, time: 0 })); } catch {}
+    if (user && progressRestoredRef.current) {
+      saveStoryProgress(user.uid, p, 0);
+    }
+  };
 
   // ── Audio sync state ───────────────────────────────────────────────────
   const [audioTime, setAudioTime]         = useState(0);
@@ -121,18 +161,13 @@ export default function BookReader({ stories }: BookReaderProps) {
   // ── Keyboard navigation (dev convenience) ───────────────────────────────
   useEffect(() => {
     const handle = (e: KeyboardEvent) => {
-      if (e.key === "ArrowDown") {
-        didNavigate.current = true;
-        setPage((p) => Math.min(p + 1, stories.length - 1));
-      }
-      if (e.key === "ArrowUp") {
-        didNavigate.current = true;
-        setPage((p) => Math.max(p - 1, 0));
-      }
+      if (e.key === "ArrowDown") navigate(Math.min(page + 1, stories.length - 1));
+      if (e.key === "ArrowUp")   navigate(Math.max(page - 1, 0));
     };
     window.addEventListener("keydown", handle);
     return () => window.removeEventListener("keydown", handle);
-  }, [stories.length]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, stories.length]);
 
   const total   = stories.length;
   const current = stories[page];
@@ -217,10 +252,7 @@ export default function BookReader({ stories }: BookReaderProps) {
                         page < total - 1 ? (
                           <button
                             className={styles.nextChapter}
-                            onClick={() => {
-                            didNavigate.current = true;
-                            setPage(page + 1);
-                          }}
+                            onClick={() => navigate(page + 1)}
                           >
                             Next Chapter
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="16" height="16">
@@ -238,9 +270,7 @@ export default function BookReader({ stories }: BookReaderProps) {
                           initialTime={didNavigate.current ? 0 : initialTimeRef.current}
                           onTimeUpdate={(t) => {
                             setAudioTime(t);
-                            try {
-                              localStorage.setItem(PROGRESS_KEY, JSON.stringify({ page, time: t }));
-                            } catch {}
+                            persistProgress(page, t);
                           }}
                           onDurationChange={setAudioDur}
                           onPlayChange={setIsPlaying}

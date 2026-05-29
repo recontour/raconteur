@@ -3,7 +3,9 @@
   width: 100%;
   box-sizing: border-box;
   display: flex;
-  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  padding: 0 2px;
 }
 
 /* Play / Pause button */
@@ -36,3 +38,53 @@
   height: 20px;
 }
 
+/* ── Scrubber ───────────────────────────────────────────────────────────── */
+.scrubber {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  transition: height 0.12s ease;
+}
+
+.scrubber:hover {
+  height: 5px;
+}
+
+.scrubber::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: rgba(80, 200, 255, 0.95);
+  box-shadow: 0 0 6px rgba(80, 200, 255, 0.55);
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.scrubber::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.scrubber::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(80, 200, 255, 0.95);
+  cursor: pointer;
+}
+
+/* ── Time readout ───────────────────────────────────────────────────────── */
+.time {
+  font-size: 11px;
+  font-family: 'SF Mono', ui-monospace, monospace;
+  color: rgba(120, 220, 255, 0.7);
+  white-space: nowrap;
+  min-width: 32px;
+  text-align: right;
+  letter-spacing: 0.02em;
+}

@@ -16,12 +16,15 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
+const firestoreDatabaseId = process.env.NEXT_PUBLIC_FIREBASE_FIRESTORE_DATABASE_ID;
 
 // Initialize Firebase services
 export const auth = getAuth(app);
 // Persist sessions across browser restarts (localStorage). Must be set before any sign-in.
 void setPersistence(auth, browserLocalPersistence);
-export const db = getFirestore(app);
+export const db = (firestoreDatabaseId && firestoreDatabaseId !== "(default)")
+  ? getFirestore(app, firestoreDatabaseId)
+  : getFirestore(app);
 export const storage = getStorage(app);
 
 export default app;

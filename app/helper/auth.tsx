@@ -12,7 +12,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { auth } from "@/lib/firebase";
 
 // Routes that do NOT require authentication
-const PUBLIC_PATHS = ["/", "/auth", "/invite", "/welcome"];
+const PUBLIC_PATHS = ["/", "/welcome"];
 
 interface AuthContextValue {
   user: User | null;
@@ -42,7 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (loading) return;
     const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
     if (!user && !isPublic) {
-      router.replace("/invite");
+      router.replace("/");
     }
   }, [user, loading, pathname, router]);
 

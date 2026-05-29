@@ -136,6 +136,24 @@ export default function AudioPlayer({
           </svg>
         )}
       </button>
+
+      <input
+        type="range"
+        className={styles.scrubber}
+        min={0}
+        max={duration || 100}
+        step={0.1}
+        value={currentTime}
+        onChange={handleProgressChange}
+        aria-label="Seek"
+        style={{
+          background: `linear-gradient(to right,
+            rgba(80,200,255,0.75) ${duration ? (currentTime / duration) * 100 : 0}%,
+            rgba(255,255,255,0.15) ${duration ? (currentTime / duration) * 100 : 0}%)`,
+        }}
+      />
+
+      <span className={styles.time}>{fmt(currentTime)}</span>
     </div>
   );
 }

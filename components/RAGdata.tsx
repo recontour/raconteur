@@ -1,21 +1,7 @@
-import { db } from "@/lib/firebase";
-import { doc, setDoc, arrayUnion, serverTimestamp } from "firebase/firestore";
+import { writeRagDataAction } from "@/app/actions/user";
 
 export const writeRagData = async (userId: string, interactionType: string, data: any) => {
-  if (!userId) return;
-  const ragRef = doc(db, "ragData", userId);
-  await setDoc(
-    ragRef,
-    {
-      interactions: arrayUnion({
-        type: interactionType,
-        data,
-        timestamp: new Date().toISOString(),
-      }),
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
+  await writeRagDataAction(userId, interactionType, data);
 };
 
 export default function RAGdata() {
