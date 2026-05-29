@@ -32,7 +32,8 @@
   display: block;
   background: none;
   border: none;
-  padding: 0;
+  padding: 8px 4px 8px 12px;
+  margin: -8px -4px -8px -12px;
   font-family: Georgia, 'Times New Roman', serif;
   font-size: 0.62rem;
   letter-spacing: 0.22em;

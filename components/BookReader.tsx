@@ -217,7 +217,7 @@ export default function BookReader({ stories }: BookReaderProps) {
         <div ref={pickerRef} className={styles.pageCounterWrap}>
           <button
             className={styles.pageCounter}
-            onClick={() => maxPage > 0 && setPickerOpen((o) => !o)}
+            onClick={() => setPickerOpen((o) => !o)}
             aria-label="Chapter list"
             aria-expanded={pickerOpen}
           >
