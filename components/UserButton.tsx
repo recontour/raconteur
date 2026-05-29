@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { signOut } from "firebase/auth";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/app/helper/auth";
 import { auth } from "@/lib/firebase";
 
@@ -9,6 +10,9 @@ export default function UserButton() {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+  const router = useRouter();
+  const isHome = pathname === "/";
 
   useEffect(() => {
     if (!open) return;
@@ -68,6 +72,26 @@ export default function UserButton() {
             minWidth: "140px",
           }}
         >
+          {!isHome && (
+            <button
+              onClick={() => { router.push("/"); setOpen(false); }}
+              style={{
+                display: "block",
+                width: "100%",
+                padding: "12px 16px",
+                textAlign: "left",
+                background: "none",
+                border: "none",
+                borderBottom: "1px solid rgba(0,0,0,0.07)",
+                cursor: "pointer",
+                fontSize: "14px",
+                color: "#1d1d1f",
+                fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+              }}
+            >
+              Home
+            </button>
+          )}
           <button
             onClick={() => { signOut(auth); setOpen(false); }}
             style={{
