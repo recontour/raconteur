@@ -107,9 +107,15 @@ export function useAuthFlow(onComplete: () => void) {
     setAuthBusy(true);
     try {
       const result = await confirmationRef.current.confirm(otpInput);
-      const newUser = await checkIsNewUser(result.user.uid);
       setAuthVia("phone");
-      if (newUser) {
+      let isNew = false;
+      try {
+        isNew = await checkIsNewUser(result.user.uid);
+      } catch {
+        finalizeAuth();
+        return;
+      }
+      if (isNew) {
         setAuthStep("profile-name");
       } else {
         finalizeAuth();
@@ -127,9 +133,17 @@ export function useAuthFlow(onComplete: () => void) {
     setAuthBusy(true);
     try {
       const result = await signInWithPopup(auth, new GoogleAuthProvider());
-      const newUser = await checkIsNewUser(result.user.uid);
       setAuthVia("google");
-      if (newUser) {
+      // Status check is best-effort — if it fails the user is already signed in,
+      // so proceed rather than surfacing a confusing error.
+      let isNew = false;
+      try {
+        isNew = await checkIsNewUser(result.user.uid);
+      } catch {
+        finalizeAuth();
+        return;
+      }
+      if (isNew) {
         setAuthStep("profile-name");
       } else {
         finalizeAuth();
