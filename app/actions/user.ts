@@ -2,6 +2,7 @@
 
 import { adminDb } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import storyData from '@/data/entireStory.json';
 
 export async function checkUserStatus(uid: string) {
   try {
@@ -122,5 +123,90 @@ export async function saveStoryProgress(uid: string, page: number, time: number)
     });
   } catch (error) {
     console.error('Error saving story progress:', error);
+  }
+}
+
+// ─── /story collection ───────────────────────────────────────────────────────
+
+export interface StoryParagraph {
+  id: number;
+  slug: string;
+  title: string;
+  text: string;
+  audio: string;
+  mood: string;
+  options: string[];
+}
+
+/**
+ * Loads /story/{storyId} from Firestore.
+ * If the document doesn't exist, seeds it from the local JSON and returns the result.
+ */
+export async function getOrInitStory(storyId: string): Promise<{ paragraphs: StoryParagraph[] }> {
+  try {
+    const ref = adminDb.collection('story').doc(storyId);
+    const snap = await ref.get();
+
+    if (snap.exists) {
+      return { paragraphs: JSON.parse(JSON.stringify(snap.data()!.paragraphs)) };
+    }
+
+    // Seed from bundled JSON
+    const raw = storyData as { meta: Record<string, unknown>; paragraphs: Array<Record<string, unknown>> };
+    const paragraphs: StoryParagraph[] = raw.paragraphs.map((p) => ({
+      id:    p.id    as number,
+      slug:  p.slug  as string,
+      title: p.title as string,
+      text:  p.text  as string,
+      // Normalise audio path — use para<id>.mp3 consistently
+      audio: `/audio/para${p.id}.mp3`,
+      mood:  (p.mood as string) ?? 'neutral',
+      options: ['Continue', 'Reflect'],
+    }));
+
+    await ref.set({
+      storyId,
+      title:     (raw.meta?.title as string) ?? storyId,
+      paragraphs,
+      seededAt:  FieldValue.serverTimestamp(),
+    });
+
+    return { paragraphs };
+  } catch (error) {
+    console.error('Error loading/initialising story:', error);
+    throw new Error(error instanceof Error ? error.message : 'Failed to load story');
+  }
+}
+
+/**
+ * Appends a story choice to /story/{storyId}/sessions/{userId}.
+ * Non-fatal — errors are logged but not rethrown.
+ */
+export async function saveStoryChoice(
+  userId: string,
+  storyId: string,
+  paraSlug: string,
+  choice: string,
+): Promise<void> {
+  if (!userId) return;
+  try {
+    await adminDb
+      .collection('story')
+      .doc(storyId)
+      .collection('sessions')
+      .doc(userId)
+      .set(
+        {
+          choices: FieldValue.arrayUnion({
+            paraSlug,
+            choice,
+            timestamp: new Date().toISOString(),
+          }),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+  } catch (error) {
+    console.error('Error saving story choice:', error);
   }
 }

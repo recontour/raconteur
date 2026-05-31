@@ -1,8 +1,3 @@
-/* SyncParagraph — word-reveal prose with teleprompter scroll
-   The clip container hides overflow and applies a fade mask.
-   The inner div is translated so the active word stays at ~42% height. */
-
-/* ── Clip container ──────────────────────────────────────────────────────── */
 .proseClip {
   flex: 1;
   position: relative;

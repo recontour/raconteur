@@ -1,0 +1,207 @@
+/* ── Container ────────────────────────────────────────────────────────────── */
+
+.container {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #9ed7f2;
+  color: #0a2540;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* ── WebGL canvas ────────────────────────────────────────────────────────── */
+
+.waterBg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+
+.header {
+  position: relative;
+  z-index: 10;
+  padding-top: 2.5rem;
+  padding-bottom: 1rem;
+  text-align: center;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(10, 37, 64, 0.42);
+}
+
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+
+.layout {
+  position: relative;
+  z-index: 10;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0 1.5rem 2.5rem;
+  gap: 1rem;
+  max-width: 560px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ── Top message bubble ──────────────────────────────────────────────────── */
+
+.topBubble {
+  flex: 1;
+  border-radius: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem;
+  /* Minimal glass — just a slight frost, no decorative gradients */
+  background: rgba(255, 255, 255, 0.40);
+  backdrop-filter: blur(40px) saturate(1.3);
+  -webkit-backdrop-filter: blur(40px) saturate(1.3);
+  border: 0.5px solid rgba(255, 255, 255, 0.70);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.80),
+    0 20px 40px rgba(0, 80, 160, 0.08);
+}
+
+.blobContent {
+  text-align: center;
+  width: 100%;
+}
+
+/* Message text */
+.messageText {
+  margin: 0;
+  font-size: 1.22rem;
+  line-height: 1.55;
+  font-weight: 400;
+  color: rgba(10, 37, 64, 0.85);
+  animation: msgIn 0.40s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Message exit — fires when msgOut state is true */
+.messageOut {
+  animation: msgOut 0.20s ease forwards !important;
+}
+
+@keyframes msgIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes msgOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* ── Options row ─────────────────────────────────────────────────────────── */
+
+.optionsRow {
+  display: flex;
+  gap: 1rem;
+}
+
+/* ── Option bubble buttons ───────────────────────────────────────────────── */
+
+.bottomBubble {
+  flex: 1;
+  aspect-ratio: 1 / 1;
+  position: relative;
+  border-radius: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  /* Same minimal glass as top bubble */
+  background: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(40px) saturate(1.3);
+  -webkit-backdrop-filter: blur(40px) saturate(1.3);
+  border: 0.5px solid rgba(255, 255, 255, 0.70);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.80),
+    0 12px 28px rgba(0, 80, 160, 0.08);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: rgba(10, 37, 64, 0.80);
+  text-align: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.bottomBubble:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.58);
+  border-color: rgba(255, 255, 255, 0.90);
+}
+
+.bottomBubble:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.bottomBubble:disabled {
+  cursor: default;
+}
+
+.bottomBubble > span {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Burst: clean Apple-style fade + gentle scale-down ──────────────────── */
+
+.bubbleBurst {
+  animation: bubbleOut 0.30s ease forwards !important;
+  pointer-events: none;
+}
+
+@keyframes bubbleOut {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.94); }
+}
+
+/* ── Fly-up: smooth rise → dissolves into the message area above ─────────── */
+
+.bubbleFlyUp {
+  animation: bubbleRise 0.32s cubic-bezier(0.40, 0, 0.20, 1) forwards !important;
+  pointer-events: none;
+}
+
+@keyframes bubbleRise {
+  0%   { opacity: 1;   transform: translateY(0%)    scale(1.00); }
+  45%  { opacity: 0.8; transform: translateY(-50%)  scale(1.02); }
+  100% { opacity: 0;   transform: translateY(-130%) scale(1.04); }
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+
+@media (max-height: 700px) {
+  .layout {
+    gap: 0.75rem;
+    padding: 0 1rem 1.5rem;
+  }
+  .topBubble {
+    padding: 1.75rem;
+  }
+  .optionsRow {
+    gap: 0.75rem;
+  }
+  .messageText {
+    font-size: 1.05rem;
+  }
+  .bottomBubble {
+    font-size: 0.88rem;
+  }
+}
+
