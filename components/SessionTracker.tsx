@@ -1,9 +1,14 @@
 "use client";
 
 import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { createAnonSession } from "@/app/actions/user";
+import { useAuth } from "@/app/helper/auth";
 
 export default function SessionTracker() {
+  const { user } = useAuth();
+  const pathname = usePathname();
+
   useEffect(() => {
     // Register service worker
     if ("serviceWorker" in navigator) {
@@ -19,10 +24,23 @@ export default function SessionTracker() {
       localStorage.setItem("raconteur_anon", anonId);
     }
 
-    createAnonSession(anonId, navigator.userAgent).catch(() => {
+    // Parse UA on client for immediate browser storage
+    const ua = navigator.userAgent;
+    const isMobile = /mobile/i.test(ua);
+    const device = isMobile ? (/iPhone|iPad|iPod/.test(ua) ? 'iPhone' : 'Android') : 'Desktop';
+    const browser = /edg/i.test(ua) ? 'Edge' : 
+                    /chrome|crios/i.test(ua) ? 'Chrome' : 
+                    /safari/i.test(ua) ? 'Safari' : 
+                    /firefox/i.test(ua) ? 'Firefox' : 'Other';
+    
+    localStorage.setItem("raconteur_session_info", JSON.stringify({ device, browser }));
+
+    // Trigger tracking on load/navigation
+    createAnonSession(anonId, navigator.userAgent, user?.uid || null).catch((err) => {
       // Non-fatal — session tracking failure should not break the UI
+      console.error("Session tracking failed:", err);
     });
-  }, []);
+  }, [user?.uid, pathname]);
 
   return null;
 }

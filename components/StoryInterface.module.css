@@ -2,7 +2,11 @@
 
 .root {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100dvh;                  /* static fallback */
+  height: var(--vp-h, 100dvh);     /* shrinks when virtual keyboard opens */
   background: #ffffff;
   overflow: hidden;
   font-family:
@@ -78,6 +82,8 @@
   flex-direction: column;
   padding: 1.25rem 1.25rem 2rem;
   gap: 0.875rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* ─── Hero bubble ───────────────────────────────────────────────────────────── */
@@ -110,6 +116,126 @@
 
 .bubbleInner::-webkit-scrollbar { display: none; }
 
+/* ─── User pill (top of layout, full-width) ──────────────────────────────────── */
+
+.userPill {
+  flex-shrink:   0;
+  width:         100%;
+  display:       flex;
+  align-items:   center;
+  gap:           0.75rem;
+  padding:       0.875rem 1.125rem;
+  border-radius: 22px;
+  border:        1.5px solid #111;
+  background:    #fff;
+  box-shadow:
+    0 2px 14px rgba(0, 0, 0, 0.045),
+    0 1px 3px  rgba(0, 0, 0, 0.03);
+  font-family:   inherit;
+  text-align:    left;
+  cursor:        pointer;
+  -webkit-tap-highlight-color: transparent;
+  animation:     optIn 0.52s cubic-bezier(0.34, 1.52, 0.64, 1) 30ms both;
+  transition:    background 0.12s ease, transform 0.12s ease;
+}
+
+.userPill:active:not(.userPillOpen) {
+  transform:  scale(0.98);
+  background: #f4f4f2;
+}
+
+.userPillOpen {
+  cursor: default;
+}
+
+.userPillAvatar {
+  width:          28px;
+  height:         28px;
+  border-radius:  50%;
+  overflow:       hidden;
+  background:     rgba(0, 0, 0, 0.08);
+  flex-shrink:    0;
+  display:        flex;
+  align-items:    center;
+  justify-content: center;
+  font-size:      11px;
+  font-weight:    600;
+  color:          #555;
+  letter-spacing: 0.02em;
+}
+
+.userPillName {
+  font-size:      0.92rem;
+  font-weight:    500;
+  color:          #1d1d1f;
+  letter-spacing: -0.015em;
+}
+/* ─── Hero pill (nav scenes — top compact bar) ────────────────────────────────── */
+
+.heroPill {
+  flex:           1;
+  min-height:     0;
+  border-radius:  28px;
+  border:         1.5px solid #111;
+  background:     #fff;
+  box-shadow:
+    0 4px 32px rgba(0, 0, 0, 0.055),
+    0 1px 4px  rgba(0, 0, 0, 0.035);
+  display:        flex;
+  flex-direction: column;
+  overflow:       hidden;
+  animation:      sceneIn 0.54s cubic-bezier(0.34, 1.38, 0.64, 1) both;
+}
+
+.heroPillTap {
+  flex-shrink:    0;
+  min-width:      0;
+  width:          100%;
+  padding:        2.5rem 2rem 1.5rem;
+  text-align:     center;
+}
+
+.heroPillTap:active:not(:disabled) {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.heroPillTap:disabled {
+  cursor: default;
+}
+
+.heroPillOptions {
+  flex:           1;
+  min-height:     0;
+  overflow-y:     auto;
+  -webkit-overflow-scrolling: touch;
+  padding:        0 1.25rem 1.5rem;
+  display:        flex;
+  flex-direction: column;
+  gap:            0.75rem;
+  animation:      optIn 0.38s cubic-bezier(0.34, 1.38, 0.64, 1) both;
+}
+
+.heroPillOpen {
+  /* pill stays flex:1, tap button disabled, options fill remaining space */
+}
+
+/* ─── Options bubble (sits below heroBubble) ─────────────────────────────────── */
+
+.optionsBubble {
+  flex-shrink:    0;
+  display:        flex;
+  flex-direction: column;
+  gap:            0.75rem;
+  animation:      optIn 0.38s cubic-bezier(0.34, 1.38, 0.64, 1) both;
+}
+
+.heroLogo {
+  width:         48px;
+  height:        48px;
+  object-fit:    contain;
+  margin-bottom: 1rem;
+}
+
 .heroText {
   margin: 0;
   font-size: 1.35rem;
@@ -117,6 +243,10 @@
   font-weight: 500;
   color: #000;
   letter-spacing: -0.022em;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
 }
 
 .subText {
@@ -201,7 +331,7 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 
-  animation: optIn 0.52s cubic-bezier(0.34, 1.52, 0.64, 1) 60ms both;
+  animation: optIn 0.52s cubic-bezier(0.34, 1.52, 0.64, 1) var(--delay, 60ms) both;
   transition: background 0.12s ease, transform 0.12s ease;
 }
 
@@ -269,12 +399,13 @@
   text-align:     left;
   font-family:    inherit;
   -webkit-tap-highlight-color: transparent;
-  transition: background 0.12s ease, border-color 0.12s ease;
+  animation:      optIn 0.52s cubic-bezier(0.34, 1.52, 0.64, 1) var(--delay, 60ms) both;
+  transition:     background 0.12s ease, border-color 0.12s ease;
 }
 
 .bookItem:active:not(:disabled) {
-  background:    rgba(0, 0, 0, 0.06);
-  border-color:  rgba(0, 0, 0, 0.22);
+  background:   rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.22);
 }
 
 .bookItem:disabled { cursor: default; opacity: 0.5; }
@@ -298,6 +429,7 @@
 
 /* ─── Phone row ─────────────────────────────────────────────────────────────── */
 
+/* (kept for reference, no longer used in phone-entry) */
 .phoneRow {
   display:     flex;
   align-items: center;
@@ -315,7 +447,7 @@
   flex-shrink:    0;
 }
 
-/* ─── Digit input row ───────────────────────────────────────────────────────── */
+/* ─── Digit input row (OTP / single-row) ──────────────────────────────────── */
 
 .digitRow {
   display:     flex;
@@ -329,7 +461,7 @@
   flex:           1;
   min-width:      0;
   aspect-ratio:   1 / 1;
-  max-width:      2.8rem;
+  max-width:      3.4rem;
   border-radius:  10px;
   border:         1.5px solid rgba(0, 0, 0, 0.18);
   background:     #fff;
@@ -339,6 +471,7 @@
   color:          #000;
   text-align:     center;
   outline:        none;
+  caret-color:    transparent;
   -webkit-tap-highlight-color: transparent;
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
@@ -352,6 +485,39 @@
 .phoneRow .digitRow {
   margin-top: 0;
   flex:       1;
+}
+
+/* ─── Digit grid (2×5 phone input) ───────────────────────────────────────────── */
+
+.digitGrid {
+  display:               grid;
+  grid-template-columns: repeat(5, 3rem);
+  gap:                   0.4rem;
+  margin-top:            1.25rem;
+  justify-content:       center;
+  align-self:            stretch;
+}
+
+.digitBoxLg {
+  height:         3rem;
+  border-radius:  10px;
+  border:         1.5px solid rgba(0, 0, 0, 0.18);
+  background:     #fff;
+  font-family:    inherit;
+  font-size:      1.1rem;
+  font-weight:    500;
+  color:          #000;
+  text-align:     center;
+  outline:        none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  caret-color:    transparent;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.digitBoxLg:focus {
+  border-color: #111;
+  box-shadow:   0 0 0 3px rgba(0, 0, 0, 0.08);
 }
 
 /* ─── Text input (name field) ───────────────────────────────────────────────── */

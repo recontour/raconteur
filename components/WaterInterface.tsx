@@ -189,11 +189,6 @@ export default function WaterInterface() {
       {/* ── Water background ── */}
       <div ref={bgRef} className={styles.waterBg} />
 
-      {/* ── Header ── */}
-      <div className={styles.header}>
-        <h1>Raconteur</h1>
-      </div>
-
       {/* ── Layout matches BotInterface exactly ── */}
       <div className={styles.layout}>
 

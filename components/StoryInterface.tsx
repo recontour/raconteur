@@ -2,9 +2,13 @@
 
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import * as THREE from "three";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { useAuth } from "@/app/helper/auth";
 import { useAuthFlow, type AuthStep } from "@/hooks/useAuthFlow";
+import { getWelcomeText } from "@/app/actions/user";
 import styles from "./StoryInterface.module.css";
 
 // ─── Story meta ───────────────────────────────────────────────────────────────
@@ -64,14 +68,17 @@ function DigitInputRow({
   value,
   onChange,
   autoFocus,
+  cols,
 }: {
   count: number;
   value: string;
   onChange: (v: string) => void;
   autoFocus?: boolean;
+  cols?: number;
 }) {
-  const refs  = useRef<(HTMLInputElement | null)[]>([]);
+  const refs   = useRef<(HTMLInputElement | null)[]>([]);
   const digits = Array.from({ length: count }, (_, i) => value[i] ?? "");
+  const isGrid = !!cols;
 
   const handleChange = (i: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const ch      = e.target.value.replace(/\D/g, "").slice(-1);
@@ -90,8 +97,12 @@ function DigitInputRow({
     }
   };
 
+  const handleFocus = (el: HTMLInputElement | null) => {
+    el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  };
+
   return (
-    <div className={styles.digitRow}>
+    <div className={isGrid ? styles.digitGrid : styles.digitRow}>
       {Array.from({ length: count }, (_, i) => (
         <input
           key={i}
@@ -104,7 +115,8 @@ function DigitInputRow({
           autoFocus={autoFocus && i === 0}
           onChange={(e) => handleChange(i, e)}
           onKeyDown={(e) => handleKeyDown(i, e)}
-          className={styles.digitBox}
+          onFocus={() => handleFocus(refs.current[i])}
+          className={isGrid ? styles.digitBoxLg : styles.digitBox}
         />
       ))}
     </div>
@@ -199,10 +211,18 @@ export default function StoryInterface() {
   const bgRef  = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-  const [sceneId,  setSceneId]  = useState<SceneId>("welcome");
-  const [exiting,  setExiting]  = useState(false);
-  const [sceneKey, setSceneKey] = useState(0);
+  const [sceneId,        setSceneId]        = useState<SceneId>("welcome");
+  const [exiting,        setExiting]        = useState(false);
+  const [sceneKey,       setSceneKey]       = useState(0);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [welcomeText,    setWelcomeText]    = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("rc_welcome_text") || "What would you like to do today?";
+    }
+    return "What would you like to do today?";
+  });
 
+  const { user } = useAuth();
   const authFlow = useAuthFlow(() => { router.push("/book"); });
 
   // Animate when auth step advances internally (OTP sent, verified, etc.)
@@ -217,9 +237,40 @@ export default function StoryInterface() {
   }, [authFlow.authStep]);
 
   useEffect(() => {
+    getWelcomeText().then((text) => {
+      setWelcomeText(text);
+      localStorage.setItem("rc_welcome_text", text);
+    }).catch(() => { /* non-fatal */ });
+  }, []);
+
+  useEffect(() => {
     if (!bgRef.current) return;
     return setupBg(bgRef.current);
   }, []);
+
+  // Shrink root height with virtual keyboard so inputs stay visible
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const sync = () => {
+      document.documentElement.style.setProperty(
+        "--vp-h",
+        `${Math.round(vv.height)}px`,
+      );
+    };
+    sync();
+    vv.addEventListener("resize", sync);
+    vv.addEventListener("scroll", sync);
+    return () => {
+      vv.removeEventListener("resize", sync);
+      vv.removeEventListener("scroll", sync);
+    };
+  }, []);
+
+  // Reset options on every scene transition
+  useEffect(() => {
+    setUserMenuOpen(false);
+  }, [sceneKey]);
 
   // ── Navigation ────────────────────────────────────────────────────────────
 
@@ -249,21 +300,72 @@ export default function StoryInterface() {
     transition(() => { authFlow.setAuthStep("phone-entry"); });
   }, [router, transition, authFlow]);
 
+  // ── User pill ─────────────────────────────────────────────────────────────
+
+  const renderUserPill = () => {
+    if (!user) return null;
+    const rawFirst = user.displayName?.split(" ")[0] ?? user.email?.split("@")[0] ?? "there";
+    const firstName = rawFirst.charAt(0).toUpperCase() + rawFirst.slice(1);
+    const initials  = user.displayName
+      ? user.displayName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()
+      : firstName[0]?.toUpperCase() ?? "U";
+    return (
+      <>
+        <button
+          className={`${styles.userPill} ${userMenuOpen ? styles.userPillOpen : ""}`}
+          onClick={() => setUserMenuOpen((o) => !o)}
+          aria-expanded={userMenuOpen}
+        >
+          <div className={styles.userPillAvatar}>
+            {user.photoURL ? (
+              <Image
+                src={user.photoURL}
+                alt={firstName}
+                width={28}
+                height={28}
+                style={{ objectFit: "cover", borderRadius: "50%", display: "block" }}
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              initials
+            )}
+          </div>
+          <span className={styles.userPillName}>Hi {firstName}</span>
+        </button>
+        {userMenuOpen && (
+          <div
+            className={styles.optSingle}
+            style={{ "--delay": "40ms" } as React.CSSProperties}
+          >
+            <button
+              className={`${styles.optBoxWide} ${styles.optBoxGhost}`}
+              onClick={() => { signOut(auth); setUserMenuOpen(false); }}
+            >
+              <span className={styles.optLabel}>Sign out</span>
+            </button>
+          </div>
+        )}
+      </>
+    );
+  };
+
   // ── Scene renderers ───────────────────────────────────────────────────────
 
   const renderStaticScene = (def: SceneDef) => {
     const isSingle = def.options.length === 1;
+    const heroText = def.hero === "Welcome to Raconteur" ? welcomeText : def.hero;
     return (
       <>
         <div className={styles.heroBubble}>
           <div className={styles.bubbleInner}>
-            <p className={styles.heroText}>{def.hero}</p>
+            <img src="/favicon.ico" alt="" className={styles.heroLogo} />
+            <p className={styles.heroText}>{heroText}</p>
             {def.subtext && <p className={styles.subText}>{def.subtext}</p>}
           </div>
         </div>
 
-        {isSingle ? (
-          <div className={styles.optSingle}>
+        <div className={styles.optionsBubble}>
+          {isSingle ? (
             <button
               className={styles.optBoxWide}
               onClick={() => navigate(def.options[0].next)}
@@ -271,22 +373,22 @@ export default function StoryInterface() {
             >
               <span className={styles.optLabel}>{def.options[0].label}</span>
             </button>
-          </div>
-        ) : (
-          <div className={styles.optGrid2}>
-            {def.options.map((opt, i) => (
-              <button
-                key={opt.label}
-                className={styles.optBox}
-                style={{ "--delay": `${i * 50 + 50}ms` } as React.CSSProperties}
-                onClick={() => navigate(opt.next)}
-                disabled={exiting}
-              >
-                <span className={styles.optLabel}>{opt.label}</span>
-              </button>
-            ))}
-          </div>
-        )}
+          ) : (
+            <div className={styles.optGrid2}>
+              {def.options.map((opt, i) => (
+                <button
+                  key={opt.label}
+                  className={styles.optBox}
+                  style={{ "--delay": `${i * 50 + 50}ms` } as React.CSSProperties}
+                  onClick={() => navigate(opt.next)}
+                  disabled={exiting}
+                >
+                  <span className={styles.optLabel}>{opt.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </>
     );
   };
@@ -294,27 +396,29 @@ export default function StoryInterface() {
   const renderStoryScene = () => (
     <>
       <div className={styles.heroBubble}>
-        <div className={`${styles.bubbleInner} ${styles.bubbleInnerList}`}>
+        <div className={styles.bubbleInner}>
+          <img src="/favicon.ico" alt="" className={styles.heroLogo} />
           <p className={styles.heroText}>Choose your story</p>
-          <div className={styles.bookList}>
-            <button
-              className={styles.bookItem}
-              onClick={handleBookSelect}
-              disabled={exiting}
-            >
-              <span className={styles.bookTitle}>{STORY_META.title}</span>
-              <span className={styles.bookMeta}>
-                {STORY_META.author} · {STORY_META.chapters} chapters
-              </span>
-            </button>
-          </div>
+          <button
+            className={styles.bookItem}
+            onClick={handleBookSelect}
+            disabled={exiting}
+            style={{ "--delay": "50ms", marginTop: "1.25rem" } as React.CSSProperties}
+          >
+            <span className={styles.bookTitle}>{STORY_META.title}</span>
+            <span className={styles.bookMeta}>
+              {STORY_META.author} · {STORY_META.chapters} chapters
+            </span>
+          </button>
         </div>
       </div>
-      <div className={styles.optSingle}>
+
+      <div className={styles.optionsBubble}>
         <button
-          className={styles.optBoxWide}
+          className={`${styles.optBoxWide} ${styles.optBoxGhost}`}
           onClick={() => navigate("welcome")}
           disabled={exiting}
+          style={{ "--delay": "120ms" } as React.CSSProperties}
         >
           <span className={styles.optLabel}>← Back</span>
         </button>
@@ -341,15 +445,13 @@ export default function StoryInterface() {
             <div className={styles.bubbleInner}>
               <p className={styles.heroText}>What's your number?</p>
               <p className={styles.subText}>We'll send a one-time code via SMS</p>
-              <div className={styles.phoneRow}>
-                <span className={styles.prefix}>+91</span>
-                <DigitInputRow
-                  count={10}
-                  value={authFlow.phoneInput}
-                  onChange={authFlow.setPhoneInput}
-                  autoFocus
-                />
-              </div>
+              <DigitInputRow
+                count={10}
+                cols={5}
+                value={authFlow.phoneInput}
+                onChange={authFlow.setPhoneInput}
+                autoFocus
+              />
               {authFlow.authError && (
                 <p className={styles.authError}>{authFlow.authError}</p>
               )}
@@ -385,7 +487,7 @@ export default function StoryInterface() {
           <div className={styles.heroBubble}>
             <div className={styles.bubbleInner}>
               <p className={styles.heroText}>Enter the code</p>
-              <p className={styles.subText}>Sent to +91 {authFlow.phoneInput}</p>
+              <p className={styles.subText}>Sent to {authFlow.phoneInput}</p>
               <DigitInputRow
                 count={6}
                 value={authFlow.otpInput}
@@ -532,11 +634,8 @@ export default function StoryInterface() {
         key={sceneKey}
         className={`${styles.scene} ${exiting ? styles.sceneExit : ""}`}
       >
-        <header className={styles.header}>
-          <span className={styles.wordmark}>Raconteur</span>
-        </header>
-
         <div className={styles.layout}>
+          {renderUserPill()}
           {renderContent()}
         </div>
       </div>

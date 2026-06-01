@@ -146,7 +146,7 @@ export interface StoryParagraph {
  */
 export async function getOrInitStory(storyId: string): Promise<{ paragraphs: StoryParagraph[] }> {
   try {
-    const ref = adminDb.collection('story').doc(storyId);
+    const ref = adminDb.collection('entireStory').doc(storyId);
     const snap = await ref.get();
 
     if (snap.exists) {
@@ -226,8 +226,21 @@ export async function moveStoryJsonToDb(uid: string) {
 
     // Only add to the DB if the document doesn't already exist
     if (!docSnap.exists) {
+      const raw = storyData as { meta: Record<string, unknown>; paragraphs: Array<Record<string, unknown>> };
+      const paragraphs: StoryParagraph[] = raw.paragraphs.map((p) => ({
+        id:    p.id    as number,
+        slug:  p.slug  as string,
+        title: p.title as string,
+        text:  p.text  as string,
+        audio: `/audio/para${p.id}.mp3`,
+        mood:  (p.mood as string) ?? 'neutral',
+        options: ['Continue', 'Reflect'],
+      }));
+
       await docRef.set({
-        ...storyData,
+        storyId: uid,
+        title: (raw.meta?.title as string) ?? uid,
+        paragraphs,
         migratedAt: FieldValue.serverTimestamp(),
       });
     }
@@ -244,7 +257,10 @@ export async function moveStoryJsonToDb(uid: string) {
 
 // ─── Anonymous session tracking ──────────────────────────────────────────────
 
-export async function createAnonSession(anonId: string, ua: string): Promise<void> {
+export async function createAnonSession(anonId: string, ua: string, userId?: string | null): Promise<void> {
+  // Log to your server terminal so you can verify the data is arriving
+  console.log(`[SessionTracker] Processing session: ${anonId} | User: ${userId || 'Anonymous'}`);
+
   try {
     const headersList = await headers();
     const ip =
@@ -252,24 +268,48 @@ export async function createAnonSession(anonId: string, ua: string): Promise<voi
       headersList.get('x-real-ip') ||
       'unknown';
 
-    const ref  = adminDb.collection('sessions').doc(anonId);
-    const snap = await ref.get();
+    // Parse the UA string into separate, readable fields
+    const isMobile = /mobile/i.test(ua);
+    const device = isMobile ? (/iPhone|iPad|iPod/.test(ua) ? 'iPhone' : 'Android') : 'Desktop';
+    
+    // Order is important: many mobile browsers include "Safari" in the string
+    const browser = /edg/i.test(ua) ? 'Edge' :
+                    /chrome|crios/i.test(ua) ? 'Chrome' : 
+                    /safari/i.test(ua) ? 'Safari' : 
+                    /firefox/i.test(ua) ? 'Firefox' : 'Other';
 
-    if (!snap.exists) {
-      await ref.set({
-        anonId,
-        ip,
-        ua,
-        firstSeen: FieldValue.serverTimestamp(),
-        lastSeen:  FieldValue.serverTimestamp(),
-        visits:    1,
-      });
-    } else {
-      await ref.update({
-        ip,
-        lastSeen: FieldValue.serverTimestamp(),
-        visits:   FieldValue.increment(1),
-      });
+    const sessionData = {
+      anonId,
+      ip,
+      ua,
+      device,   // Saved separately as requested
+      browser,  // Saved separately as requested
+      lastSeen: FieldValue.serverTimestamp(),
+      userId: userId || null,
+    };
+
+    const sessionRef = adminDb.collection('sessions').doc(anonId);
+    
+    // Use set with merge: true to ensure device/browser fields are added 
+    // even if the document was created previously without them.
+    await sessionRef.set({
+      ...sessionData,
+      // If it's a new doc, set firstSeen. If existing, it stays.
+      firstSeen: FieldValue.serverTimestamp(), 
+      visits: FieldValue.increment(1),
+    }, { merge: true });
+
+    if (userId) {
+      // Save a "map" of the current session directly to the user document
+      await adminDb.collection('users').doc(userId).set({
+        lastSessionId: anonId,
+        sessionIds:    FieldValue.arrayUnion(anonId),
+        updatedAt:     FieldValue.serverTimestamp(),
+        currentSession: {
+          device,
+          browser,
+        }
+      }, { merge: true });
     }
   } catch (error) {
     console.error('Error creating anon session:', error);
@@ -336,4 +376,19 @@ export async function saveGoogleAuthLog(
   } catch (error) {
     console.error('Error saving Google auth log:', error);
   }
+}
+
+// ─── Welcome text (loaded from /config/welcome, cached client-side) ────────────
+
+export async function getWelcomeText(): Promise<string> {
+  try {
+    const snap = await adminDb.collection('config').doc('welcome').get();
+    if (snap.exists) {
+      const text = snap.data()?.text as string | undefined;
+      if (text?.trim()) return text.trim();
+    }
+  } catch (e) {
+    console.error('getWelcomeText failed:', e);
+  }
+  return 'What would you like to do today?';
 }

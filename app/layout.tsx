@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 
 import "./globals.css";
 import { AuthProvider } from "@/app/helper/auth";
-import UserButton from "@/components/UserButton";
 import SessionTracker from "@/components/SessionTracker";
 
 export const metadata: Metadata = {
@@ -56,7 +55,6 @@ export default function RootLayout({
           <p>Please rotate your device to portrait mode</p>
         </div>
         <AuthProvider>
-          <UserButton />
           <SessionTracker />
           {/* Invisible reCAPTCHA container for phone auth */}
           <div id="recaptcha-container" />

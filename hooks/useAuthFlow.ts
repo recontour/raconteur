@@ -5,6 +5,7 @@ import {
   ConfirmationResult,
   GoogleAuthProvider,
   linkWithPopup,
+  updateProfile,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { saveUserProfile, upsertPhoneUser, saveGoogleAuthLog } from "@/app/actions/user";
@@ -116,11 +117,13 @@ export function useAuthFlow(onComplete: () => void) {
     setAuthBusy(true);
     try {
       const parts = nameInput.trim().split(/\s+/);
+      const firstName = parts[0] ?? "";
       await saveUserProfile(auth.currentUser.uid, {
         name:      nameInput.trim(),
-        firstName: parts[0] ?? "",
+        firstName,
         lastName:  parts.slice(1).join(" ") || "",
       });
+      await updateProfile(auth.currentUser, { displayName: firstName });
       setAuthStep("link-google");
     } catch (err) {
       setAuthError(friendlyError(err instanceof Error ? err.message : String(err)));

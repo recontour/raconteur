@@ -215,10 +215,6 @@ export default function BotInterface() {
         </button>
       )}
 
-      <div className={styles.header}>
-        <h1>Raconteur</h1>
-      </div>
-
       <div className={styles.layout}>
         {engineError && <p style={{ color: "red", textAlign: "center" }}>{engineError}</p>}
         

@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { auth } from "@/lib/firebase";
-import { getDialogueFlow, saveUserChoiceAction } from "@/app/actions/user";
+import { getDialogueFlow, saveUserChoiceAction, moveStoryJsonToDb, getOrInitStory, StoryParagraph } from "@/app/actions/user";
 import { writeRagData } from "@/components/RAGdata";
 import { RagDocument } from "@/components/Context";
 
@@ -27,22 +27,6 @@ const HERO_STEP: DialogueStep = {
   type: "row",
 };
 
-const AVATAR_STEP: DialogueStep = {
-  id: "avatar",
-  ai: "Choose your avatar:",
-  options: [
-    "Sir Fluffington",
-    "Captain Chuckle",
-    "Count Quackula",
-    "Baron Von Bop",
-    "Professor Puddle",
-    "Lord Wiggles",
-    "Doctor Doofus",
-    "Madam Mischief",
-    "Cancel"
-  ],
-  type: "grid",
-};
 
 const FLOW_ID = "main";
 
@@ -52,7 +36,13 @@ export function useStoryEngine() {
   const [flowSteps, setFlowSteps] = useState<DialogueStep[]>([]);
   const [ragContext, setRagContext] = useState<RagDocument[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sessionInfo, setSessionInfo] = useState<{ device: string; browser: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Book/Story content state
+  const [storyParagraphs, setStoryParagraphs] = useState<StoryParagraph[]>([]);
+  const [audioProgress, setAudioProgress] = useState({ current: 0, duration: 0 });
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Weather state injected into dialogue
   const [weatherMessage, setWeatherMessage] = useState<string | null>(null);
@@ -70,6 +60,46 @@ export function useStoryEngine() {
     };
     fetchFlow();
   }, []);
+
+  // Load session info into RAG context on mount
+  useEffect(() => {
+    const stored = localStorage.getItem("raconteur_session_info");
+    if (stored) {
+      const info = JSON.parse(stored);
+      setSessionInfo(info);
+      addRagContext(`User Environment: ${info.browser} on ${info.device}`, { source: "SessionTracker", type: "System Info" });
+    }
+  }, []);
+
+  // Handle audio playback and sync for book paragraphs
+  useEffect(() => {
+    if (phase === "STORY" && storyParagraphs.length > 0) {
+      const p = storyParagraphs[storyStepIndex];
+      if (p?.audio) {
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.src = "";
+        }
+
+        const audio = new Audio(p.audio);
+        audioRef.current = audio;
+
+        const update = () => {
+          setAudioProgress({ current: audio.currentTime, duration: audio.duration || 0 });
+        };
+
+        audio.addEventListener("timeupdate", update);
+        audio.addEventListener("loadedmetadata", update);
+        audio.play().catch((err) => console.warn("Audio play blocked by browser:", err));
+
+        return () => {
+          audio.removeEventListener("timeupdate", update);
+          audio.removeEventListener("loadedmetadata", update);
+          audio.pause();
+        };
+      }
+    }
+  }, [phase, storyStepIndex, storyParagraphs]);
 
   const saveUserChoice = async (stepId: string, option: string) => {
     if (!auth.currentUser) return;
@@ -98,8 +128,20 @@ export function useStoryEngine() {
     try {
       if (phase === "WELCOME") {
         if (option === "Continue Reading") {
+          const savedId = localStorage.getItem('active_story_id');
+          if (savedId) {
+            const { paragraphs } = await getOrInitStory(savedId);
+            setStoryParagraphs(paragraphs);
+            setPhase("STORY");
+            return;
+          }
           onRequireAuth();
         } else if (option === "Start a New Story") {
+          const storyUid = "omelas-v1";
+          await moveStoryJsonToDb(storyUid);
+          localStorage.setItem('active_story_id', storyUid);
+          const { paragraphs } = await getOrInitStory(storyUid);
+          setStoryParagraphs(paragraphs);
           setPhase("HERO");
         }
       } else if (phase === "HERO") {
@@ -120,6 +162,13 @@ export function useStoryEngine() {
           setStoryStepIndex(0);
         }
       } else if (phase === "STORY") {
+        // If we are in the book flow, advance through paragraphs
+        if (storyParagraphs.length > 0) {
+          if (storyStepIndex + 1 < storyParagraphs.length) {
+            setStoryStepIndex((i) => i + 1);
+            return;
+          }
+        }
         const currentStep = flowSteps[storyStepIndex];
         if (currentStep) {
           // Optimistic UI could be added here, but we await the DB save for safety
@@ -153,8 +202,19 @@ export function useStoryEngine() {
         ? { ...HERO_STEP, ai: weatherMessage, options: ["🌤 Weather near me", "Create avatar"], type: "row" }
         : HERO_STEP;
     }
-    if (phase === "AVATAR") return AVATAR_STEP;
-    if (phase === "STORY") return flowSteps[storyStepIndex] || WELCOME_STEP;
+    
+    if (phase === "STORY") {
+      if (storyParagraphs.length > 0) {
+        const p = storyParagraphs[storyStepIndex];
+        return {
+          id: p.slug,
+          ai: p.text,
+          options: p.options || ["Continue", "Reflect"],
+          type: "grid"
+        };
+      }
+      return flowSteps[storyStepIndex] || WELCOME_STEP;
+    }
     return WELCOME_STEP;
   };
 
@@ -167,6 +227,8 @@ export function useStoryEngine() {
     handleSelection,
     setWeatherMessage,
     flowSteps, // Exported for writer mode
+    sessionInfo,
     setFlowSteps, // Exported for writer mode
+    audioProgress, // Sync state for minimalist Apple-style UI animation
   };
 }
