@@ -664,3 +664,32 @@
   opacity: 0.5;
   cursor: default;
 }
+.messageContent {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+.messageFaviconInner {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  flex-shrink: 0;
+  border-radius: 50%;
+  margin-top: 4px;
+}
+.userFaviconInner {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 4px;
+  color: #555;
+}
+.userFaviconInner svg {
+  width: 10px;
+  height: 10px;
+}

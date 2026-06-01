@@ -22,7 +22,7 @@ export async function generateStoryResponse(userText: string) {
     // but this is a server action so it's fine.
     const { GoogleGenAI } = await import("@google/genai"); 
     // Assuming process.env.GEMINI_API_KEY is set
-    const ai = new GoogleGenAI();
+    const ai = new GoogleGenAI({});
     // Using gemini-2.5-flash as the lite model per current standards (or whatever is standard, maybe gemini-3.0-flash later)
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",

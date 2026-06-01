@@ -348,6 +348,7 @@ export default function StoryInterface() {
 
   const [inputVal, setInputVal] = useState("");
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isChatActive, setIsChatActive] = useState(false);
 
   // ── Navigation ────────────────────────────────────────────────────────────
 
@@ -494,6 +495,31 @@ export default function StoryInterface() {
 
   // ── Scene renderers ───────────────────────────────────────────────────────
 
+  const renderMessageIcon = (role: "bot" | "user") => {
+    if (role === "bot") {
+      return <img src="/favicon.ico" alt="AI" className={styles.messageFaviconInner} />;
+    }
+    if (user?.photoURL) {
+      return (
+        <img
+          src={user.photoURL}
+          alt={user.displayName || "User"}
+          className={styles.messageFaviconInner}
+          style={{ objectFit: "cover" }}
+          referrerPolicy="no-referrer"
+        />
+      );
+    }
+    return (
+      <div className={styles.userFaviconInner}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
+        </svg>
+      </div>
+    );
+  };
+
   const renderStaticScene = (def: SceneDef) => {
     const isSingle = def.options.length === 1;
     const heroText = def.hero === "Welcome to Raconteur" ? welcomeText : def.hero;
@@ -505,20 +531,22 @@ export default function StoryInterface() {
             <div className={styles.messagesContainer}>
               {messages.map((msg) => (
                 <div key={msg.id} className={`${styles.messageRow} ${msg.role === "user" ? styles.messageRowUser : ""}`}>
-                  {msg.role === "bot" && (
-                    <img src="/favicon.ico" alt="AI" className={styles.messageFavicon} />
-                  )}
                   <div className={`${styles.messageBubble} ${msg.role === "user" ? styles.userBubble : styles.botBubble}`}>
-                    <p className={styles.messageText}>{msg.text}</p>
+                    <div className={styles.messageContent}>
+                      {renderMessageIcon(msg.role)}
+                      <p className={styles.messageText}>{msg.text}</p>
+                    </div>
                   </div>
                 </div>
               ))}
               {isAiLoading && (
                 <div className={styles.messageRow}>
-                  <img src="/favicon.ico" alt="AI" className={styles.messageFavicon} />
                   <div className={`${styles.messageBubble} ${styles.botBubble}`}>
-                    <div className={styles.typingIndicator}>
-                      <span></span><span></span><span></span>
+                    <div className={styles.messageContent}>
+                      {renderMessageIcon("bot")}
+                      <div className={styles.typingIndicator} style={{ alignSelf: 'center' }}>
+                        <span></span><span></span><span></span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -528,24 +556,26 @@ export default function StoryInterface() {
           </div>
         </div>
 
-        <div className={styles.chatInputContainer}>
-            <input 
-              type="text" 
-              className={styles.chatInput} 
-              placeholder="Type your message..."
-              value={inputVal}
-              onChange={(e) => setInputVal(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSendAiMessage()}
-              disabled={isAiLoading}
-            />
-            <button 
-              className={styles.sendButton} 
-              onClick={handleSendAiMessage}
-              disabled={isAiLoading || !inputVal.trim()}
-            >
-              Send
-            </button>
-        </div>
+        {isChatActive && (
+          <div className={styles.chatInputContainer}>
+              <input 
+                type="text" 
+                className={styles.chatInput} 
+                placeholder="Type your message..."
+                value={inputVal}
+                onChange={(e) => setInputVal(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSendAiMessage()}
+                disabled={isAiLoading}
+              />
+              <button 
+                className={styles.sendButton} 
+                onClick={handleSendAiMessage}
+                disabled={isAiLoading || !inputVal.trim()}
+              >
+                Send
+              </button>
+          </div>
+        )}
 
         <div className={styles.optionsBubble}>
           {isSingle ? (
