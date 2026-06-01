@@ -215,9 +215,7 @@
   animation:      optIn 0.38s cubic-bezier(0.34, 1.38, 0.64, 1) both;
 }
 
-.heroPillOpen {
-  /* pill stays flex:1, tap button disabled, options fill remaining space */
-}
+/* .heroPillOpen — pill stays flex:1, tap button disabled, options fill remaining space */
 
 /* ─── Options bubble (sits below heroBubble) ─────────────────────────────────── */
 
@@ -508,6 +506,7 @@
   color:          #000;
   text-align:     center;
   outline:        none;
+  appearance:     none;
   -webkit-appearance: none;
   -webkit-tap-highlight-color: transparent;
   caret-color:    transparent;
@@ -556,4 +555,49 @@
   letter-spacing: -0.005em;
   line-height:    1.4;
   text-align:     center;
+}
+
+/* ─── Chat Messages Container ───────────────────────────────────────────────── */
+
+.messagesContainer {
+  display:        flex;
+  flex-direction: column;
+  width:          100%;
+  gap:            0.75rem;
+  padding:        0;
+}
+
+.messageRow {
+  display:        flex;
+  align-items:    flex-start;
+  gap:            0.75rem;
+  animation:      optIn 0.52s cubic-bezier(0.34, 1.52, 0.64, 1) both;
+}
+
+.messageFavicon {
+  width:         32px;
+  height:        32px;
+  object-fit:    contain;
+  flex-shrink:   0;
+  border-radius: 50%;
+}
+
+.messageBubble {
+  flex:              1;
+  background:        rgba(0, 0, 0, 0.03);
+  border-radius:     14px;
+  padding:           0.75rem 1rem;
+  max-width:         100%;
+}
+
+.messageText {
+  margin:            0;
+  font-size:         0.95rem;
+  line-height:       1.5;
+  font-weight:       400;
+  color:             #000;
+  letter-spacing:    -0.01em;
+  word-break:        break-word;
+  overflow-wrap:     break-word;
+  white-space:       normal;
 }

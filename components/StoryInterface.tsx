@@ -5,11 +5,22 @@ import * as THREE from "three";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { useAuth } from "@/app/helper/auth";
 import { useAuthFlow, type AuthStep } from "@/hooks/useAuthFlow";
 import { getWelcomeText } from "@/app/actions/user";
+import BookReader from "./BookReader";
+import storyData from "@/data/entireStory.json";
 import styles from "./StoryInterface.module.css";
+
+// ─── Message type ────────────────────────────────────────────────────────────
+
+interface ChatMessage {
+  id: string;
+  text: string;
+  timestamp: number;
+}
 
 // ─── Story meta ───────────────────────────────────────────────────────────────
 
@@ -209,12 +220,15 @@ function setupBg(el: HTMLDivElement): () => void {
 
 export default function StoryInterface() {
   const bgRef  = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   const [sceneId,        setSceneId]        = useState<SceneId>("welcome");
   const [exiting,        setExiting]        = useState(false);
   const [sceneKey,       setSceneKey]       = useState(0);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [bookSelected,   setBookSelected]   = useState(false);
+  const [messages,       setMessages]       = useState<ChatMessage[]>([]);
   const [welcomeText,    setWelcomeText]    = useState<string>(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("rc_welcome_text") || "What would you like to do today?";
@@ -235,6 +249,20 @@ export default function StoryInterface() {
     }
     prevAuthStep.current = curr;
   }, [authFlow.authStep]);
+
+  // Save message to Firebase sessions collection
+  const saveMessageToFirebase = useCallback(async (text: string) => {
+    if (!user?.uid) return;
+    try {
+      await addDoc(collection(db, `sessions/${user.uid}/messages`), {
+        text,
+        timestamp: serverTimestamp(),
+        sceneId,
+      });
+    } catch (error) {
+      console.error("Error saving message:", error);
+    }
+  }, [user?.uid, sceneId]);
 
   useEffect(() => {
     getWelcomeText().then((text) => {
@@ -267,9 +295,16 @@ export default function StoryInterface() {
     };
   }, []);
 
+  // Scroll to bottom when messages update
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
   // Reset options on every scene transition
   useEffect(() => {
     setUserMenuOpen(false);
+    // Clear messages when transitioning between scenes
+    setMessages([]);
   }, [sceneKey]);
 
   // ── Navigation ────────────────────────────────────────────────────────────
@@ -283,22 +318,48 @@ export default function StoryInterface() {
     }, 280);
   }, []);
 
+  const addMessage = useCallback((text: string) => {
+    const newMessage: ChatMessage = {
+      id: `${Date.now()}`,
+      text,
+      timestamp: Date.now(),
+    };
+    setMessages((prev) => [...prev, newMessage]);
+    saveMessageToFirebase(text);
+  }, [saveMessageToFirebase]);
+
   const navigate = useCallback(
-    (next: SceneId) => transition(() => setSceneId(next)),
-    [transition],
+    (next: SceneId) => {
+      const scene = SCENES[next];
+      if (scene && scene.hero) {
+        addMessage(scene.hero);
+      }
+      transition(() => setSceneId(next));
+    },
+    [transition, addMessage],
   );
+
+  // Add first message on scene load
+  useEffect(() => {
+    const scene = SCENES[sceneId];
+    if (messages.length === 0 && scene && scene.hero) {
+      const heroText = scene.hero === "Welcome to Raconteur" ? welcomeText : scene.hero;
+      addMessage(heroText);
+    }
+  }, [sceneId, messages.length, welcomeText, addMessage]);
 
   const exitAuth = useCallback(() => {
     transition(() => { authFlow.setAuthStep(null); });
   }, [transition, authFlow]);
 
   const handleBookSelect = useCallback(() => {
-    if (auth.currentUser) {
-      router.push("/book");
-      return;
-    }
-    transition(() => { authFlow.setAuthStep("phone-entry"); });
-  }, [router, transition, authFlow]);
+    // Load BookReader directly in the bubble instead of routing
+    setBookSelected(true);
+  }, []);
+
+  const handleCloseReader = useCallback(() => {
+    setBookSelected(false);
+  }, []);
 
   // ── User pill ─────────────────────────────────────────────────────────────
 
@@ -354,13 +415,22 @@ export default function StoryInterface() {
   const renderStaticScene = (def: SceneDef) => {
     const isSingle = def.options.length === 1;
     const heroText = def.hero === "Welcome to Raconteur" ? welcomeText : def.hero;
+
     return (
       <>
         <div className={styles.heroBubble}>
           <div className={styles.bubbleInner}>
-            <img src="/favicon.ico" alt="" className={styles.heroLogo} />
-            <p className={styles.heroText}>{heroText}</p>
-            {def.subtext && <p className={styles.subText}>{def.subtext}</p>}
+            <div className={styles.messagesContainer}>
+              {messages.map((msg) => (
+                <div key={msg.id} className={styles.messageRow}>
+                  <img src="/favicon.ico" alt="AI" className={styles.messageFavicon} />
+                  <div className={styles.messageBubble}>
+                    <p className={styles.messageText}>{msg.text}</p>
+                  </div>
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
           </div>
         </div>
 
@@ -425,6 +495,40 @@ export default function StoryInterface() {
       </div>
     </>
   );
+
+  const renderBookReaderScene = () => {
+    // Adapt entireStory paragraphs to BookReader Story format
+    const stories = storyData.paragraphs.map((p) => ({
+      id: p.id,
+      slug: p.slug,
+      title: p.title,
+      paragraph: p.text,
+      mood: p.mood,
+      audioFile: p.audio,
+      duration: p.duration ?? 0,
+      subtitles: [] as Array<{ time: number; text: string }>,
+    }));
+
+    return (
+      <>
+        <div className={styles.heroBubble}>
+          <div className={styles.bookReaderContainer}>
+            <BookReader stories={stories} />
+          </div>
+        </div>
+
+        <div className={styles.optionsBubble}>
+          <button
+            className={`${styles.optBoxWide} ${styles.optBoxGhost}`}
+            onClick={handleCloseReader}
+            style={{ "--delay": "50ms" } as React.CSSProperties}
+          >
+            <span className={styles.optLabel}>← Back to Stories</span>
+          </button>
+        </div>
+      </>
+    );
+  };
 
   const renderAuth = (step: AuthStep) => {
     if (step === "entering") {
@@ -621,6 +725,7 @@ export default function StoryInterface() {
   };
 
   const renderContent = () => {
+    if (bookSelected) return renderBookReaderScene();
     if (authFlow.authStep !== null) return renderAuth(authFlow.authStep);
     if (sceneId === "story")        return renderStoryScene();
     return renderStaticScene(SCENES[sceneId]);

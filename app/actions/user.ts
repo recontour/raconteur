@@ -264,7 +264,7 @@ export async function createAnonSession(anonId: string, ua: string, userId?: str
   try {
     const headersList = await headers();
     const ip =
-      headersList.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      headersList.get('x-forwarded-for')?.split(',')?.[0]?.trim() ||
       headersList.get('x-real-ip') ||
       'unknown';
 
@@ -299,9 +299,8 @@ export async function createAnonSession(anonId: string, ua: string, userId?: str
       visits: FieldValue.increment(1),
     }, { merge: true });
 
-    let userSetPromise: Promise<void> = Promise.resolve();
+    let userSetPromise: Promise<any> = Promise.resolve();
     if (userId) {
-      // Save a "map" of the current session directly to the user document
       userSetPromise = adminDb.collection('users').doc(userId).set({
         lastSessionId: anonId,
         sessionIds:    FieldValue.arrayUnion(anonId),
@@ -310,7 +309,7 @@ export async function createAnonSession(anonId: string, ua: string, userId?: str
           device,
           browser,
         }
-      }, { merge: true }) as Promise<void>;
+      }, { merge: true });
     }
 
     // Wait for both writes with a timeout
