@@ -3,7 +3,7 @@
 .root {
   position: fixed;
   inset: 0;
-  background: #f9f9f7;
+  background: #ffffff;
   overflow: hidden;
   font-family:
     -apple-system,
@@ -224,5 +224,172 @@
 @keyframes optIn {
   from { opacity: 0; transform: translateY(22px) scale(0.93); }
   to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+
+/* ─── Ghost / muted button variant ─────────────────────────────────────────── */
+
+.optBoxGhost {
+  border-color: rgba(0, 0, 0, 0.14) !important;
+  color: rgba(0, 0, 0, 0.38) !important;
+}
+
+.optBoxGhost:active:not(:disabled) {
+  background: #f4f4f2 !important;
+}
+
+/* ─── Bubble inner list variant ─────────────────────────────────────────────── */
+
+.bubbleInnerList {
+  justify-content: flex-start !important;
+  align-items:     stretch    !important;
+  padding-top:     1.75rem;
+}
+
+/* ─── Book list ─────────────────────────────────────────────────────────────── */
+
+.bookList {
+  display:        flex;
+  flex-direction: column;
+  gap:            0.5rem;
+  margin-top:     1rem;
+  width:          100%;
+}
+
+.bookItem {
+  display:        flex;
+  flex-direction: column;
+  align-items:    flex-start;
+  gap:            0.3rem;
+  width:          100%;
+  padding:        1rem 1.125rem;
+  border-radius:  16px;
+  border:         1.5px solid rgba(0, 0, 0, 0.10);
+  background:     rgba(0, 0, 0, 0.025);
+  cursor:         pointer;
+  text-align:     left;
+  font-family:    inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.bookItem:active:not(:disabled) {
+  background:    rgba(0, 0, 0, 0.06);
+  border-color:  rgba(0, 0, 0, 0.22);
+}
+
+.bookItem:disabled { cursor: default; opacity: 0.5; }
+
+.bookTitle {
+  font-size:      0.95rem;
+  font-weight:    500;
+  color:          #000;
+  letter-spacing: -0.015em;
+  line-height:    1.3;
+  pointer-events: none;
+}
+
+.bookMeta {
+  font-size:      0.78rem;
+  font-weight:    400;
+  color:          rgba(0, 0, 0, 0.40);
+  letter-spacing: -0.005em;
+  pointer-events: none;
+}
+
+/* ─── Phone row ─────────────────────────────────────────────────────────────── */
+
+.phoneRow {
+  display:     flex;
+  align-items: center;
+  gap:         0.5rem;
+  margin-top:  1.25rem;
+  width:       100%;
+}
+
+.prefix {
+  font-size:      0.9rem;
+  font-weight:    500;
+  color:          rgba(0, 0, 0, 0.50);
+  letter-spacing: -0.01em;
+  white-space:    nowrap;
+  flex-shrink:    0;
+}
+
+/* ─── Digit input row ───────────────────────────────────────────────────────── */
+
+.digitRow {
+  display:     flex;
+  gap:         0.35rem;
+  margin-top:  1.25rem;
+  width:       100%;
+  justify-content: center;
+}
+
+.digitBox {
+  flex:           1;
+  min-width:      0;
+  aspect-ratio:   1 / 1;
+  max-width:      2.8rem;
+  border-radius:  10px;
+  border:         1.5px solid rgba(0, 0, 0, 0.18);
+  background:     #fff;
+  font-family:    inherit;
+  font-size:      1.1rem;
+  font-weight:    500;
+  color:          #000;
+  text-align:     center;
+  outline:        none;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.digitBox:focus {
+  border-color: #111;
+  box-shadow:   0 0 0 3px rgba(0, 0, 0, 0.07);
+}
+
+/* Inside .phoneRow the digit row fills remaining space */
+.phoneRow .digitRow {
+  margin-top: 0;
+  flex:       1;
+}
+
+/* ─── Text input (name field) ───────────────────────────────────────────────── */
+
+.authInput {
+  display:        block;
+  width:          100%;
+  margin-top:     1.25rem;
+  padding:        0.875rem 1rem;
+  border-radius:  14px;
+  border:         1.5px solid rgba(0, 0, 0, 0.18);
+  background:     #fff;
+  font-family:    inherit;
+  font-size:      1rem;
+  font-weight:    400;
+  color:          #000;
+  outline:        none;
+  box-sizing:     border-box;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.authInput:focus {
+  border-color: #111;
+  box-shadow:   0 0 0 3px rgba(0, 0, 0, 0.07);
+}
+
+.authInput::placeholder { color: rgba(0, 0, 0, 0.28); }
+
+/* ─── Auth error message ────────────────────────────────────────────────────── */
+
+.authError {
+  margin:         0.75rem 0 0;
+  font-size:      0.80rem;
+  font-weight:    400;
+  color:          #c0392b;
+  letter-spacing: -0.005em;
+  line-height:    1.4;
+  text-align:     center;
 }
 

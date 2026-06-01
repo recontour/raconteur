@@ -3,15 +3,13 @@ import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
   ConfirmationResult,
-  signInWithPopup,
   GoogleAuthProvider,
   linkWithPopup,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import { checkUserStatus, saveUserProfile } from "@/app/actions/user";
+import { saveUserProfile, upsertPhoneUser, saveGoogleAuthLog } from "@/app/actions/user";
 
 export type AuthStep =
-  | "method"
   | "phone-entry"
   | "phone-otp"
   | "profile-name"
@@ -20,23 +18,18 @@ export type AuthStep =
   | null;
 
 export function useAuthFlow(onComplete: () => void) {
-  const [authStep, setAuthStep] = useState<AuthStep>(null);
+  const [authStep,   setAuthStep]   = useState<AuthStep>(null);
   const [phoneInput, setPhoneInput] = useState("");
-  const [otpInput, setOtpInput] = useState("");
-  const [nameInput, setNameInput] = useState("");
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [authBusy, setAuthBusy] = useState(false);
-  const [authVia, setAuthVia] = useState<"phone" | "google" | null>(null);
+  const [otpInput,   setOtpInput]   = useState("");
+  const [nameInput,  setNameInput]  = useState("");
+  const [authError,  setAuthError]  = useState<string | null>(null);
+  const [authBusy,   setAuthBusy]   = useState(false);
 
   const confirmationRef = useRef<ConfirmationResult | null>(null);
-  const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
+  const recaptchaRef    = useRef<RecaptchaVerifier   | null>(null);
 
   const clearVerifier = () => {
-    try {
-      recaptchaRef.current?.clear();
-    } catch {
-      /* ignore */
-    }
+    try { recaptchaRef.current?.clear(); } catch { /* ignore */ }
     recaptchaRef.current = null;
   };
 
@@ -50,29 +43,16 @@ export function useAuthFlow(onComplete: () => void) {
 
   const friendlyError = (msg: string): string => {
     if (msg.includes("client is offline") || msg.toLowerCase().includes("offline"))
-      return "Cannot reach Firestore right now. Check your internet connection.";
-    if (msg.includes("invalid-phone-number")) return "Please enter a valid 10-digit number.";
+      return "Cannot reach server. Check your connection.";
+    if (msg.includes("invalid-phone-number"))
+      return "Please enter a valid 10-digit number.";
     if (msg.includes("invalid-verification-code") || msg.includes("code-expired"))
       return "Incorrect or expired code. Try again.";
-    if (msg.includes("too-many-requests")) return "Too many attempts. Please wait a moment.";
-    if (msg.includes("quota-exceeded")) return "SMS quota exceeded. Try again later.";
+    if (msg.includes("too-many-requests"))
+      return "Too many attempts. Please wait a moment.";
+    if (msg.includes("quota-exceeded"))
+      return "SMS quota exceeded. Try again later.";
     return "Something went wrong. Please try again.";
-  };
-
-  const checkIsNewUser = async (uid: string): Promise<boolean> => {
-    try {
-      const { exists } = await checkUserStatus(uid);
-      return !exists;
-    } catch (err) {
-      console.error("Failed to check user status", err);
-      // Fallback to true if server action fails (e.g. DB not found error)
-      // but the error will still trigger the friendly error in the caller
-      throw err;
-    }
-  };
-
-  const saveProfile = async (uid: string, data: Record<string, unknown>) => {
-    await saveUserProfile(uid, data);
   };
 
   const finalizeAuth = () => {
@@ -80,7 +60,7 @@ export function useAuthFlow(onComplete: () => void) {
     setTimeout(() => {
       setAuthStep(null);
       onComplete();
-    }, 900);
+    }, 800);
   };
 
   const handleSendOTP = async () => {
@@ -89,7 +69,7 @@ export function useAuthFlow(onComplete: () => void) {
     setAuthBusy(true);
     try {
       const verifier = getVerifier();
-      const result = await signInWithPhoneNumber(auth, `+91${phoneInput}`, verifier);
+      const result   = await signInWithPhoneNumber(auth, `+91${phoneInput}`, verifier);
       confirmationRef.current = result;
       setOtpInput("");
       setAuthStep("phone-otp");
@@ -107,52 +87,24 @@ export function useAuthFlow(onComplete: () => void) {
     setAuthBusy(true);
     try {
       const result = await confirmationRef.current.confirm(otpInput);
-      setAuthVia("phone");
-      let isNew = false;
+      const uid    = result.user.uid;
+
+      let name: string | null = null;
       try {
-        isNew = await checkIsNewUser(result.user.uid);
+        const res = await upsertPhoneUser(uid, `+91${phoneInput}`);
+        name = res.name;
       } catch {
-        finalizeAuth();
+        setAuthStep("profile-name");
         return;
       }
-      if (isNew) {
-        setAuthStep("profile-name");
-      } else {
+
+      if (name) {
         finalizeAuth();
+      } else {
+        setAuthStep("profile-name");
       }
     } catch (err) {
       setAuthError(friendlyError(err instanceof Error ? err.message : String(err)));
-    } finally {
-      setAuthBusy(false);
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    if (authBusy) return;
-    setAuthError(null);
-    setAuthBusy(true);
-    try {
-      const result = await signInWithPopup(auth, new GoogleAuthProvider());
-      setAuthVia("google");
-      // Status check is best-effort — if it fails the user is already signed in,
-      // so proceed rather than surfacing a confusing error.
-      let isNew = false;
-      try {
-        isNew = await checkIsNewUser(result.user.uid);
-      } catch {
-        finalizeAuth();
-        return;
-      }
-      if (isNew) {
-        setAuthStep("profile-name");
-      } else {
-        finalizeAuth();
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (!msg.includes("popup-closed-by-user") && !msg.includes("cancelled-popup-request")) {
-        setAuthError(friendlyError(msg));
-      }
     } finally {
       setAuthBusy(false);
     }
@@ -163,15 +115,13 @@ export function useAuthFlow(onComplete: () => void) {
     setAuthError(null);
     setAuthBusy(true);
     try {
-      await saveProfile(auth.currentUser.uid, {
-        name: nameInput.trim(),
-        authVia,
+      const parts = nameInput.trim().split(/\s+/);
+      await saveUserProfile(auth.currentUser.uid, {
+        name:      nameInput.trim(),
+        firstName: parts[0] ?? "",
+        lastName:  parts.slice(1).join(" ") || "",
       });
-      if (authVia === "phone") {
-        setAuthStep("link-google");
-      } else {
-        finalizeAuth();
-      }
+      setAuthStep("link-google");
     } catch (err) {
       setAuthError(friendlyError(err instanceof Error ? err.message : String(err)));
     } finally {
@@ -184,8 +134,15 @@ export function useAuthFlow(onComplete: () => void) {
     setAuthError(null);
     setAuthBusy(true);
     try {
-      await linkWithPopup(auth.currentUser, new GoogleAuthProvider());
-      await saveProfile(auth.currentUser.uid, { googleLinked: true });
+      const cred = await linkWithPopup(auth.currentUser, new GoogleAuthProvider());
+      const g    = cred.user;
+      const gProvider = g.providerData.find((p) => p.providerId === "google.com");
+      await saveGoogleAuthLog(g.uid, {
+        displayName: gProvider?.displayName ?? g.displayName,
+        email:       gProvider?.email       ?? g.email,
+        photoURL:    gProvider?.photoURL    ?? g.photoURL,
+        providerId:  "google.com",
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (
@@ -217,7 +174,6 @@ export function useAuthFlow(onComplete: () => void) {
     authBusy,
     handleSendOTP,
     handleVerifyOTP,
-    handleGoogleSignIn,
     handleSaveName,
     handleLinkGoogle,
     finalizeAuth,

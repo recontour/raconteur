@@ -1,7 +1,9 @@
 'use server';
 
+import { headers } from 'next/headers';
 import { adminDb } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import { revalidatePath } from 'next/cache';
 import storyData from '@/data/entireStory.json';
 
 export async function checkUserStatus(uid: string) {
@@ -208,5 +210,130 @@ export async function saveStoryChoice(
       );
   } catch (error) {
     console.error('Error saving story choice:', error);
+  }
+}
+
+/**
+ * Moves the local entireStory.json data to the Firestore collection 'entireStory'
+ * for a document with the given UID.
+ */
+export async function moveStoryJsonToDb(uid: string) {
+  try {
+    if (!uid) throw new Error('Document UID is required');
+
+    const docRef = adminDb.collection('entireStory').doc(uid);
+    const docSnap = await docRef.get();
+
+    // Only add to the DB if the document doesn't already exist
+    if (!docSnap.exists) {
+      await docRef.set({
+        ...storyData,
+        migratedAt: FieldValue.serverTimestamp(),
+      });
+    }
+
+    // Revalidate the path where your story is displayed
+    revalidatePath('/book');
+
+    return { success: true, uid };
+  } catch (error: any) {
+    console.error('Error moving story JSON to Firestore:', error);
+    throw new Error(error.message || 'Failed to move story data');
+  }
+}
+
+// ─── Anonymous session tracking ──────────────────────────────────────────────
+
+export async function createAnonSession(anonId: string, ua: string): Promise<void> {
+  try {
+    const headersList = await headers();
+    const ip =
+      headersList.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      headersList.get('x-real-ip') ||
+      'unknown';
+
+    const ref  = adminDb.collection('sessions').doc(anonId);
+    const snap = await ref.get();
+
+    if (!snap.exists) {
+      await ref.set({
+        anonId,
+        ip,
+        ua,
+        firstSeen: FieldValue.serverTimestamp(),
+        lastSeen:  FieldValue.serverTimestamp(),
+        visits:    1,
+      });
+    } else {
+      await ref.update({
+        ip,
+        lastSeen: FieldValue.serverTimestamp(),
+        visits:   FieldValue.increment(1),
+      });
+    }
+  } catch (error) {
+    console.error('Error creating anon session:', error);
+  }
+}
+
+// ─── Phone user upsert ───────────────────────────────────────────────────────
+
+export async function upsertPhoneUser(
+  uid: string,
+  phone: string,
+): Promise<{ name: string | null }> {
+  const ref  = adminDb.collection('users').doc(uid);
+  const snap = await ref.get();
+
+  if (!snap.exists) {
+    await ref.set({
+      uid,
+      phone,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return { name: null };
+  }
+
+  await ref.update({ phone, updatedAt: FieldValue.serverTimestamp() });
+  return { name: (snap.data()?.name as string | undefined) ?? null };
+}
+
+// ─── Google auth log ─────────────────────────────────────────────────────────
+
+export async function saveGoogleAuthLog(
+  uid: string,
+  data: {
+    displayName: string | null;
+    email:       string | null;
+    photoURL:    string | null;
+    providerId:  string;
+  },
+): Promise<void> {
+  try {
+    await adminDb.collection('logs').doc(uid).set(
+      { ...data, uid, savedAt: FieldValue.serverTimestamp() },
+      { merge: true },
+    );
+
+    if (data.displayName) {
+      const parts     = data.displayName.trim().split(/\s+/);
+      const firstName = parts[0] ?? '';
+      const lastName  = parts.slice(1).join(' ') || '';
+      await adminDb.collection('users').doc(uid).set(
+        {
+          firstName,
+          lastName,
+          displayName: data.displayName,
+          email:       data.email,
+          photoURL:    data.photoURL,
+          googleLinked: true,
+          updatedAt:   FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    }
+  } catch (error) {
+    console.error('Error saving Google auth log:', error);
   }
 }
