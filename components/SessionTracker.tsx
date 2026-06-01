@@ -13,6 +13,13 @@ export default function SessionTracker() {
     // Register service worker
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").then((registration) => {
+        // If there's an update already waiting from a previous session, prompt now
+        if (registration.waiting) {
+          if (confirm('A new version of Raconteur is available. Update now?')) {
+            window.location.reload();
+          }
+        }
+
         registration.onupdatefound = () => {
           const installingWorker = registration.installing;
           if (installingWorker) {

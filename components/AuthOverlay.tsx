@@ -26,7 +26,7 @@ export function AuthOverlay({ authFlow, onCancel }: { authFlow: ReturnType<typeo
     nameInput, setNameInput,
     authError, setAuthError,
     authBusy,
-    handleSendOTP, handleVerifyOTP, handleGoogleSignIn, handleSaveName, handleLinkGoogle, finalizeAuth
+    handleSendOTP, handleVerifyOTP, handleSaveName, handleLinkGoogle, finalizeAuth
   } = authFlow;
 
   if (!authStep) return null;
@@ -37,7 +37,7 @@ export function AuthOverlay({ authFlow, onCancel }: { authFlow: ReturnType<typeo
       <div className={styles.authPanel}>
 
         {/* ── Method selection ──────────────────────────────────────── */}
-        {authStep === "method" && (
+        {(authStep as any) === "method" && (
           <div className={styles.authContent}>
             <p className={styles.authWordmark}>Raconteur</p>
             <h2 className={styles.authTitle}>How would you like to sign in?</h2>
@@ -50,14 +50,6 @@ export function AuthOverlay({ authFlow, onCancel }: { authFlow: ReturnType<typeo
               >
                 <PhoneIcon />
                 <span>Continue with Phone</span>
-              </button>
-              <button
-                className={styles.authMethodBtn}
-                onClick={handleGoogleSignIn}
-                disabled={authBusy}
-              >
-                <GoogleIcon size={18} />
-                <span>Continue with Google</span>
               </button>
             </div>
             {authBusy && (

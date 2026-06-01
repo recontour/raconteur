@@ -183,7 +183,7 @@ export default function BotInterface() {
     if (isSubmitting) return;
 
     if (option === "Continue Reading" && !user && !authStateLoading) {
-      setAuthStep("method");
+      setAuthStep("method" as any);
       return;
     } else if (option === "Continue Reading" && user) {
       router.push("/book");
@@ -196,7 +196,7 @@ export default function BotInterface() {
       return;
     }
 
-    handleSelection(option, () => setAuthStep("method"));
+    handleSelection(option, () => setAuthStep("method" as any));
   };
 
   return (

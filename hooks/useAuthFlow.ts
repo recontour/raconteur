@@ -11,6 +11,7 @@ import { auth } from "@/lib/firebase";
 import { saveUserProfile, upsertPhoneUser, saveGoogleAuthLog } from "@/app/actions/user";
 
 export type AuthStep =
+  | "method"
   | "phone-entry"
   | "phone-otp"
   | "profile-name"
