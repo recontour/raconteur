@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useTransition } from "react";
 import { usePathname } from "next/navigation";
 import { createAnonSession } from "@/app/actions/user";
 import { useAuth } from "@/app/helper/auth";
@@ -8,6 +8,7 @@ import { useAuth } from "@/app/helper/auth";
 export default function SessionTracker() {
   const { user } = useAuth();
   const pathname = usePathname();
+  const [_, startTransition] = useTransition();
 
   useEffect(() => {
     // Register service worker
@@ -55,12 +56,14 @@ export default function SessionTracker() {
     
     localStorage.setItem("raconteur_session_info", JSON.stringify({ device, browser }));
 
-    // Trigger tracking on load/navigation
-    createAnonSession(anonId, navigator.userAgent, user?.uid || null).catch((err) => {
-      // Non-fatal — session tracking failure should not break the UI
-      console.error("Session tracking failed:", err);
+    // Trigger tracking on load/navigation — wrapped in startTransition to avoid blocking render
+    startTransition(() => {
+      createAnonSession(anonId, navigator.userAgent, user?.uid || null).catch((err) => {
+        // Non-fatal — session tracking failure should not break the UI
+        console.warn("[SessionTracker] Session tracking failed (non-fatal):", err);
+      });
     });
-  }, [user?.uid, pathname]);
+  }, [user?.uid, pathname, startTransition]);
 
   return null;
 }

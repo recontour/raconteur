@@ -292,16 +292,17 @@ export async function createAnonSession(anonId: string, ua: string, userId?: str
     
     // Use set with merge: true to ensure device/browser fields are added 
     // even if the document was created previously without them.
-    await sessionRef.set({
+    const sessionSetPromise = sessionRef.set({
       ...sessionData,
       // If it's a new doc, set firstSeen. If existing, it stays.
       firstSeen: FieldValue.serverTimestamp(), 
       visits: FieldValue.increment(1),
     }, { merge: true });
 
+    let userSetPromise: Promise<void> = Promise.resolve();
     if (userId) {
       // Save a "map" of the current session directly to the user document
-      await adminDb.collection('users').doc(userId).set({
+      userSetPromise = adminDb.collection('users').doc(userId).set({
         lastSessionId: anonId,
         sessionIds:    FieldValue.arrayUnion(anonId),
         updatedAt:     FieldValue.serverTimestamp(),
@@ -309,10 +310,22 @@ export async function createAnonSession(anonId: string, ua: string, userId?: str
           device,
           browser,
         }
-      }, { merge: true });
+      }, { merge: true }) as Promise<void>;
     }
+
+    // Wait for both writes with a timeout
+    await Promise.race([
+      Promise.all([sessionSetPromise, userSetPromise]),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Firestore write timeout after 5s')), 5000)
+      )
+    ]);
+
+    console.log(`[SessionTracker] Session saved successfully: ${anonId}`);
   } catch (error) {
-    console.error('Error creating anon session:', error);
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error(`[SessionTracker] Error creating anon session (${anonId}):`, errorMsg);
+    // Don't re-throw — session tracking failure is non-fatal
   }
 }
 
