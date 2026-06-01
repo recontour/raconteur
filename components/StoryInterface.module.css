@@ -3,6 +3,7 @@
 .root {
   position: fixed;
   inset: 0;
+  background: #f9f9f7;
   overflow: hidden;
   font-family:
     -apple-system,
@@ -25,7 +26,7 @@
   z-index: 0;
 }
 
-/* ─── Scene layer ───────────────────────────────────────────────────────────── */
+/* ─── Scene ─────────────────────────────────────────────────────────────────── */
 
 .scene {
   position: absolute;
@@ -33,309 +34,195 @@
   z-index: 10;
   display: flex;
   flex-direction: column;
-  /* default: fully visible */
-  opacity: 1;
-  transform: translateY(0);
-  transition:
-    opacity    0.38s ease,
-    transform  0.38s cubic-bezier(0.32, 0, 0.67, 0);
+  animation: sceneIn 0.54s cubic-bezier(0.34, 1.38, 0.64, 1) both;
 }
 
 .sceneExit {
-  opacity: 0;
-  transform: translateY(-14px);
+  animation: sceneOut 0.26s cubic-bezier(0.4, 0, 1, 1) forwards;
   pointer-events: none;
+}
+
+@keyframes sceneIn {
+  from { opacity: 0; transform: translateY(30px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes sceneOut {
+  from { opacity: 1; transform: translateY(0);     filter: blur(0px); }
+  to   { opacity: 0; transform: translateY(-22px); filter: blur(5px); }
 }
 
 /* ─── Header ────────────────────────────────────────────────────────────────── */
 
 .header {
   flex-shrink: 0;
-  padding: 3rem 1.75rem 0.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.22rem;
+  padding: 3.2rem 1.75rem 0;
 }
 
 .wordmark {
-  font-size: 0.62rem;
+  display: block;
+  font-size: 0.60rem;
   font-weight: 600;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.20em;
   text-transform: uppercase;
-  color: rgba(0, 0, 0, 0.20);
+  color: rgba(0, 0, 0, 0.22);
   user-select: none;
-}
-
-.chapterLabel {
-  font-size: 0.68rem;
-  font-weight: 400;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: rgba(0, 0, 0, 0.28);
-  animation: fadeIn 0.45s ease both;
 }
 
 /* ─── Layout ────────────────────────────────────────────────────────────────── */
 
 .layout {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 0.625rem 1.25rem 2rem;
-  gap: 0.75rem;
-  min-height: 0; /* allow flex children to shrink */
+  padding: 1.25rem 1.25rem 2rem;
+  gap: 0.875rem;
 }
 
-/* ─── Top bubble ────────────────────────────────────────────────────────────── */
+/* ─── Hero bubble ───────────────────────────────────────────────────────────── */
 
-.topBubble {
+.heroBubble {
   flex: 1;
   min-height: 0;
-  border-radius: 30px;
-  overflow: hidden;
-
-  /* Light blue /30 glass — the signature treatment */
-  background: rgba(173, 216, 230, 0.26);
-  backdrop-filter: blur(52px) saturate(1.55);
-  -webkit-backdrop-filter: blur(52px) saturate(1.55);
-  border: 0.5px solid rgba(255, 255, 255, 0.68);
+  border-radius: 28px;
+  border: 1.5px solid #111;
+  background: #fff;
   box-shadow:
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.78),
-    0 28px 56px rgba(0, 60, 120, 0.04),
-    0 4px 12px rgba(0, 60, 120, 0.025);
-
-  /* Transition used both for idle→exit and for enter */
-  will-change: transform, opacity;
-  transition:
-    transform 0.56s cubic-bezier(0.55, 0, 0.45, 1),
-    opacity   0.42s cubic-bezier(0.32, 0, 0.67, 0);
+    0 4px 32px rgba(0, 0, 0, 0.055),
+    0 1px 4px  rgba(0, 0, 0, 0.035);
+  overflow: hidden;
 }
-
-/* Bubble flies up on user choice */
-.topExit {
-  transform: translateY(-112vh) scale(0.94);
-  opacity: 0;
-}
-
-/* ─── Bubble inner (scrollable) ─────────────────────────────────────────────── */
 
 .bubbleInner {
   height: 100%;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  padding: 2.125rem 2rem;
-  box-sizing: border-box;
-}
-
-.bubbleInner::-webkit-scrollbar {
-  display: none;
-}
-
-/* ─── Onboarding dialogue text ──────────────────────────────────────────────── */
-
-.dialogText {
-  margin: 0;
-  font-size: 1.24rem;
-  line-height: 1.60;
-  font-weight: 400;
-  color: #090909;
-  text-align: center;
-  animation: fadeSlideIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-/* ─── Story paragraph text ──────────────────────────────────────────────────── */
-
-/* Wrapper re-mounted on every paragraph (key changes) → animation retriggers */
-.crawlWrap {
-  animation: crawlIn 0.76s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.paraText {
-  margin: 0;
-  font-size: 1.03rem;
-  line-height: 1.74;
-  font-weight: 400;
-  color: #090909;
-  letter-spacing: -0.004em;
-}
-
-/* ─── Keyframes ─────────────────────────────────────────────────────────────── */
-
-@keyframes crawlIn {
-  from {
-    opacity: 0;
-    transform: translateY(52px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes fadeSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(14px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
-/* ─── Options row ───────────────────────────────────────────────────────────── */
-
-.optRow {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2.25rem 2rem;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.bubbleInner::-webkit-scrollbar { display: none; }
+
+.heroText {
+  margin: 0;
+  font-size: 1.35rem;
+  line-height: 1.50;
+  font-weight: 500;
+  color: #000;
+  letter-spacing: -0.022em;
+}
+
+.subText {
+  margin: 0.75rem 0 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  font-weight: 400;
+  color: rgba(0, 0, 0, 0.38);
+  letter-spacing: -0.01em;
+}
+
+/* ─── 2-column grid ─────────────────────────────────────────────────────────── */
+
+.optGrid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
   flex-shrink: 0;
 }
 
-/* ─── Option bubble button ──────────────────────────────────────────────────── */
+/* ─── Square option box ─────────────────────────────────────────────────────── */
 
-.optBubble {
-  width: 100%;
+.optBox {
   aspect-ratio: 1 / 1;
-  border-radius: 24px;
+  border-radius: 22px;
+  border: 1.5px solid #111;
+  background: #fff;
+  box-shadow:
+    0 2px 14px rgba(0, 0, 0, 0.045),
+    0 1px 3px  rgba(0, 0, 0, 0.03);
+
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0.875rem 1rem;
-
-  background: rgba(255, 255, 255, 0.48);
-  backdrop-filter: blur(36px) saturate(1.4);
-  -webkit-backdrop-filter: blur(36px) saturate(1.4);
-  border: 0.5px solid rgba(255, 255, 255, 0.66);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.84),
-    0 8px 20px rgba(0, 40, 100, 0.035);
+  padding: 1rem;
 
   font-family: inherit;
-  font-size: 0.90rem;
+  font-size: 0.88rem;
   font-weight: 500;
-  color: #090909;
+  color: #000;
   text-align: center;
+  letter-spacing: -0.01em;
 
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  will-change: transform, opacity;
-  transition:
-    background  0.14s ease,
-    transform   0.14s ease;
+
+  animation: optIn 0.52s cubic-bezier(0.34, 1.52, 0.64, 1) var(--delay, 60ms) both;
+  transition: background 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
 }
 
-.optBubble:active:not(:disabled) {
-  transform: scale(0.97);
-  background: rgba(255, 255, 255, 0.34);
+.optBox:active:not(:disabled) {
+  transform: scale(0.95);
+  background: #f4f4f2;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
 }
 
-.optBubble:disabled {
-  cursor: default;
-}
+.optBox:disabled { cursor: default; }
 
-.optLabel {
-  pointer-events: none;
-  line-height: 1.32;
-}
+/* ─── Single wide option ────────────────────────────────────────────────────── */
 
-/* ─── Option fly + dissolve animations ─────────────────────────────────────── */
-
-.optFly {
-  animation: optFlyUp 0.52s cubic-bezier(0.55, 0, 0.45, 1) forwards;
-}
-
-.optDissolve {
-  animation: optDissolve 0.26s ease forwards;
-}
-
-@keyframes optFlyUp {
-  0%   { transform: scale(1)    translateY(0);       opacity: 1; }
-  100% { transform: scale(0.90) translateY(-116vh);  opacity: 0; }
-}
-
-@keyframes optDissolve {
-  0%   { transform: scale(1);    opacity: 1; }
-  100% { transform: scale(0.82); opacity: 0; }
-}
-
-/* ─── Avatar / grid options ─────────────────────────────────────────────────── */
-
-.optGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 0.6rem;
+.optSingle {
   flex-shrink: 0;
 }
 
-.optChip {
-  border-radius: 18px;
-  padding: 0.7rem 0.4rem;
-  background: rgba(255, 255, 255, 0.46);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 0.5px solid rgba(255, 255, 255, 0.64);
+.optBoxWide {
+  width: 100%;
+  padding: 1.125rem 1.5rem;
+  border-radius: 22px;
+  border: 1.5px solid #111;
+  background: #fff;
+  box-shadow:
+    0 2px 14px rgba(0, 0, 0, 0.045),
+    0 1px 3px  rgba(0, 0, 0, 0.03);
+
   font-family: inherit;
-  font-size: 0.76rem;
+  font-size: 0.92rem;
   font-weight: 500;
-  color: #090909;
+  color: #000;
   text-align: center;
+  letter-spacing: -0.01em;
+
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: background 0.13s ease, transform 0.13s ease;
+
+  animation: optIn 0.52s cubic-bezier(0.34, 1.52, 0.64, 1) 60ms both;
+  transition: background 0.12s ease, transform 0.12s ease;
 }
 
-.optChip:active:not(:disabled) {
-  transform: scale(0.95);
-  background: rgba(255, 255, 255, 0.32);
+.optBoxWide:active:not(:disabled) {
+  transform: scale(0.97);
+  background: #f4f4f2;
 }
 
-.optChip:disabled {
-  cursor: default;
-}
+.optBoxWide:disabled { cursor: default; }
 
-/* ─── Phase veil ────────────────────────────────────────────────────────────── */
+/* ─── Option label ──────────────────────────────────────────────────────────── */
 
-.phaseVeil {
-  position: absolute;
-  inset: 0;
-  z-index: 40;
-  background: rgba(251, 251, 254, 0.96);
-  animation: veilPulse 0.78s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+.optLabel {
   pointer-events: none;
+  line-height: 1.3;
 }
 
-@keyframes veilPulse {
-  0%   { opacity: 0; }
-  42%  { opacity: 1; }
-  100% { opacity: 0; }
+/* ─── Keyframes ─────────────────────────────────────────────────────────────── */
+
+@keyframes optIn {
+  from { opacity: 0; transform: translateY(22px) scale(0.93); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
 }
 
-/* ─── Loading state ─────────────────────────────────────────────────────────── */
-
-.waiting {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.waitDot {
-  display: block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.13);
-  animation: breathe 1.5s ease-in-out infinite;
-}
-
-@keyframes breathe {
-  0%, 100% { transform: scale(1);    opacity: 0.30; }
-  50%       { transform: scale(1.55); opacity: 0.60; }
-}
