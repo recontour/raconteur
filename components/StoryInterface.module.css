@@ -91,12 +91,14 @@
 .heroBubble {
   flex: 1;
   min-height: 0;
-  border-radius: 28px;
-  border: 1.5px solid #111;
-  background: #fff;
+  border-radius: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
   box-shadow:
-    0 4px 32px rgba(0, 0, 0, 0.055),
-    0 1px 4px  rgba(0, 0, 0, 0.035);
+    0 8px 32px rgba(0, 0, 0, 0.04),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.3);
   overflow: hidden;
 }
 
@@ -125,23 +127,26 @@
   align-items:   center;
   gap:           0.75rem;
   padding:       0.875rem 1.125rem;
-  border-radius: 22px;
-  border:        1.5px solid #111;
-  background:    #fff;
+  border-radius: 24px;
+  border:        1px solid rgba(255, 255, 255, 0.6);
+  background:    rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
   box-shadow:
-    0 2px 14px rgba(0, 0, 0, 0.045),
-    0 1px 3px  rgba(0, 0, 0, 0.03);
+    0 8px 24px rgba(0, 0, 0, 0.04),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.3);
   font-family:   inherit;
   text-align:    left;
   cursor:        pointer;
   -webkit-tap-highlight-color: transparent;
   animation:     optIn 0.52s cubic-bezier(0.34, 1.52, 0.64, 1) 30ms both;
-  transition:    background 0.12s ease, transform 0.12s ease;
+  transition:    background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .userPill:active:not(.userPillOpen) {
   transform:  scale(0.98);
-  background: #f4f4f2;
+  background: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
 }
 
 .userPillOpen {
@@ -175,12 +180,14 @@
 .heroPill {
   flex:           1;
   min-height:     0;
-  border-radius:  28px;
-  border:         1.5px solid #111;
-  background:     #fff;
+  border-radius:  32px;
+  border:         1px solid rgba(255, 255, 255, 0.6);
+  background:     rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
   box-shadow:
-    0 4px 32px rgba(0, 0, 0, 0.055),
-    0 1px 4px  rgba(0, 0, 0, 0.035);
+    0 8px 32px rgba(0, 0, 0, 0.04),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.3);
   display:        flex;
   flex-direction: column;
   overflow:       hidden;
@@ -239,7 +246,7 @@
   font-size: 1.35rem;
   line-height: 1.50;
   font-weight: 500;
-  color: #000;
+  color: #1d1d1f;
   letter-spacing: -0.022em;
   white-space: normal;
   word-break: break-word;
@@ -268,12 +275,14 @@
 /* ─── Square option box ─────────────────────────────────────────────────────── */
 
 .optBox {
-  border-radius: 22px;
-  border: 1.5px solid #111;
-  background: #fff;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
   box-shadow:
-    0 2px 14px rgba(0, 0, 0, 0.045),
-    0 1px 3px  rgba(0, 0, 0, 0.03);
+    0 8px 24px rgba(0, 0, 0, 0.04),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.4);
 
   display: flex;
   align-items: center;
@@ -283,7 +292,7 @@
   font-family: inherit;
   font-size: 0.88rem;
   font-weight: 500;
-  color: #000;
+  color: #1d1d1f;
   text-align: center;
   letter-spacing: -0.01em;
 
@@ -291,13 +300,13 @@
   -webkit-tap-highlight-color: transparent;
 
   animation: optIn 0.52s cubic-bezier(0.34, 1.52, 0.64, 1) var(--delay, 60ms) both;
-  transition: background 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .optBox:active:not(:disabled) {
   transform: scale(0.95);
-  background: #f4f4f2;
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
 }
 
 .optBox:disabled { cursor: default; }
@@ -311,17 +320,19 @@
 .optBoxWide {
   width: 100%;
   padding: 0.875rem 1.5rem;
-  border-radius: 22px;
-  border: 1.5px solid #111;
-  background: #fff;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
   box-shadow:
-    0 2px 14px rgba(0, 0, 0, 0.045),
-    0 1px 3px  rgba(0, 0, 0, 0.03);
+    0 8px 24px rgba(0, 0, 0, 0.04),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.4);
 
   font-family: inherit;
   font-size: 0.92rem;
   font-weight: 500;
-  color: #000;
+  color: #1d1d1f;
   text-align: center;
   letter-spacing: -0.01em;
 
@@ -329,12 +340,13 @@
   -webkit-tap-highlight-color: transparent;
 
   animation: optIn 0.52s cubic-bezier(0.34, 1.52, 0.64, 1) var(--delay, 60ms) both;
-  transition: background 0.12s ease, transform 0.12s ease;
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .optBoxWide:active:not(:disabled) {
   transform: scale(0.97);
-  background: #f4f4f2;
+  background: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
 }
 
 .optBoxWide:disabled { cursor: default; }
@@ -389,20 +401,24 @@
   gap:            0.3rem;
   width:          100%;
   padding:        1rem 1.125rem;
-  border-radius:  16px;
-  border:         1.5px solid rgba(0, 0, 0, 0.10);
-  background:     rgba(0, 0, 0, 0.025);
+  border-radius:  18px;
+  border:         1px solid rgba(255, 255, 255, 0.6);
+  background:     rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  box-shadow:     0 2px 8px rgba(0, 0, 0, 0.02);
   cursor:         pointer;
   text-align:     left;
   font-family:    inherit;
   -webkit-tap-highlight-color: transparent;
   animation:      optIn 0.52s cubic-bezier(0.34, 1.52, 0.64, 1) var(--delay, 60ms) both;
-  transition:     background 0.12s ease, border-color 0.12s ease;
+  transition:     background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .bookItem:active:not(:disabled) {
-  background:   rgba(0, 0, 0, 0.06);
-  border-color: rgba(0, 0, 0, 0.22);
+  transform:    scale(0.98);
+  background:   rgba(255, 255, 255, 0.3);
+  box-shadow:   0 1px 4px rgba(0, 0, 0, 0.03);
 }
 
 .bookItem:disabled { cursor: default; opacity: 0.5; }
@@ -410,7 +426,7 @@
 .bookTitle {
   font-size:      0.95rem;
   font-weight:    500;
-  color:          #000;
+  color:          #1d1d1f;
   letter-spacing: -0.015em;
   line-height:    1.3;
   pointer-events: none;
@@ -459,23 +475,25 @@
   min-width:      0;
   aspect-ratio:   1 / 1;
   max-width:      3.4rem;
-  border-radius:  10px;
-  border:         1.5px solid rgba(0, 0, 0, 0.18);
-  background:     #fff;
+  border-radius:  12px;
+  border:         1px solid rgba(0, 0, 0, 0.15);
+  background:     rgba(255, 255, 255, 0.7);
+  box-shadow:     inset 0 1px 3px rgba(0,0,0,0.02);
   font-family:    inherit;
   font-size:      1.1rem;
   font-weight:    500;
-  color:          #000;
+  color:          #1d1d1f;
   text-align:     center;
   outline:        none;
   caret-color:    transparent;
   -webkit-tap-highlight-color: transparent;
-  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .digitBox:focus {
-  border-color: #111;
-  box-shadow:   0 0 0 3px rgba(0, 0, 0, 0.07);
+  border-color: rgba(0,0,0,0.3);
+  background:   #fff;
+  box-shadow:   0 0 0 4px rgba(0, 0, 0, 0.05);
 }
 
 /* Inside .phoneRow the digit row fills remaining space */
@@ -496,26 +514,28 @@
 }
 
 .digitBoxLg {
-  height:         3rem;
-  border-radius:  10px;
-  border:         1.5px solid rgba(0, 0, 0, 0.18);
-  background:     #fff;
+  height:         3.2rem;
+  border-radius:  12px;
+  border:         1px solid rgba(0, 0, 0, 0.15);
+  background:     rgba(255, 255, 255, 0.7);
+  box-shadow:     inset 0 1px 3px rgba(0,0,0,0.02);
   font-family:    inherit;
   font-size:      1.1rem;
   font-weight:    500;
-  color:          #000;
+  color:          #1d1d1f;
   text-align:     center;
   outline:        none;
   appearance:     none;
   -webkit-appearance: none;
   -webkit-tap-highlight-color: transparent;
   caret-color:    transparent;
-  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .digitBoxLg:focus {
-  border-color: #111;
-  box-shadow:   0 0 0 3px rgba(0, 0, 0, 0.08);
+  border-color: rgba(0,0,0,0.3);
+  background:   #fff;
+  box-shadow:   0 0 0 4px rgba(0, 0, 0, 0.05);
 }
 
 /* ─── Text input (name field) ───────────────────────────────────────────────── */
@@ -524,23 +544,25 @@
   display:        block;
   width:          100%;
   margin-top:     1.25rem;
-  padding:        0.875rem 1rem;
-  border-radius:  14px;
-  border:         1.5px solid rgba(0, 0, 0, 0.18);
-  background:     #fff;
+  padding:        1rem 1.125rem;
+  border-radius:  16px;
+  border:         1px solid rgba(0, 0, 0, 0.15);
+  background:     rgba(255, 255, 255, 0.7);
+  box-shadow:     inset 0 1px 3px rgba(0,0,0,0.02);
   font-family:    inherit;
   font-size:      1rem;
   font-weight:    400;
-  color:          #000;
+  color:          #1d1d1f;
   outline:        none;
   box-sizing:     border-box;
   -webkit-tap-highlight-color: transparent;
-  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .authInput:focus {
-  border-color: #111;
-  box-shadow:   0 0 0 3px rgba(0, 0, 0, 0.07);
+  border-color: rgba(0,0,0,0.3);
+  background:   #fff;
+  box-shadow:   0 0 0 4px rgba(0, 0, 0, 0.05);
 }
 
 .authInput::placeholder { color: rgba(0, 0, 0, 0.28); }
@@ -584,8 +606,12 @@
 
 .messageBubble {
   flex:              1;
-  background:        rgba(0, 0, 0, 0.03);
-  border-radius:     14px;
+  background:        rgba(255, 255, 255, 0.15);
+  backdrop-filter:   blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  border:            1px solid rgba(255, 255, 255, 0.4);
+  box-shadow:        0 2px 8px rgba(0, 0, 0, 0.02);
+  border-radius:     18px;
   padding:           0.75rem 1rem;
   max-width:         100%;
 }
@@ -595,9 +621,46 @@
   font-size:         0.95rem;
   line-height:       1.5;
   font-weight:       400;
-  color:             #000;
+  color:             #1d1d1f;
   letter-spacing:    -0.01em;
   word-break:        break-word;
   overflow-wrap:     break-word;
   white-space:       normal;
+}
+
+.chatInputContainer {
+  display: flex;
+  gap: 8px;
+  padding: 0 0 8px 0;
+  width: 100%;
+}
+.chatInput {
+  flex: 1;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  padding: 0.875rem 1.125rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+  color: #1d1d1f;
+  outline: none;
+}
+.sendButton {
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  padding: 0 1.25rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.sendButton:active:not(:disabled) {
+  transform: scale(0.95);
+}
+.sendButton:disabled {
+  opacity: 0.5;
+  cursor: default;
 }

@@ -20,6 +20,7 @@ interface ChatMessage {
   id: string;
   text: string;
   timestamp: number;
+  role: "bot" | "user";
 }
 
 // ─── Story meta ───────────────────────────────────────────────────────────────
@@ -140,6 +141,8 @@ const BG_FRAG = `
   precision mediump float;
   uniform vec2  uRes;
   uniform float uTime;
+
+  // Hashing & Noise functions
   float h(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
   float n(vec2 p){
     vec2 i=floor(p),f=fract(p),u=f*f*(3.0-2.0*f);
@@ -147,25 +150,36 @@ const BG_FRAG = `
   }
   float fbm(vec2 p){
     float v=0.0,a=0.5;
-    for(int i=0;i<3;i++){v+=a*n(p);p=p*2.1+vec2(1.3,0.7);a*=0.5;}
+    for(int i=0;i<4;i++){v+=a*n(p);p=p*2.1+vec2(1.3,0.7);a*=0.5;}
     return v;
   }
+
   void main(){
-    vec2  uv = gl_FragCoord.xy / uRes;
-    float t  = uTime * 0.030;
-    vec2  p  = uv * 2.6;
-    float n1 = fbm(p + vec2(t,         t * 0.60));
-    float n2 = fbm(p + vec2(-t * 0.45, t * 0.33) + n1 * 0.40);
-    float n3 = fbm(p + n2 * 0.58);
-    vec3 base = vec3(0.983, 0.981, 0.975);
-    vec3 warm = vec3(0.971, 0.967, 0.954);
-    vec3 col  = base;
-    col = mix(col, warm, n1 * 0.28);
-    col = mix(col, warm, n2 * 0.18);
-    col = mix(col, warm, n3 * 0.12);
-    float vig = 1.0 - dot(uv - 0.5, uv - 0.5) * 0.08;
-    col *= vig;
-    gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+    vec2 uv = gl_FragCoord.xy / uRes;
+    
+    // Very slow progression
+    float t = uTime * 0.008;
+    
+    // Soft flowing wave landscape
+    vec2 p = uv * 2.5;
+    p.y += t * 2.0; 
+    p.x += t * 1.5;
+    
+    float wave = fbm(p + vec2(fbm(p + t)));
+    
+    // Radial gradient: light gray on the outside, dark gray wave in the middle
+    float dist = distance(uv, vec2(0.5, 0.5));
+    
+    // Center dark gray wave color
+    vec3 centerGray = vec3(0.40, 0.40, 0.40) - (wave * 0.15);
+    // Outer light gray
+    vec3 edgeWhite = vec3(0.85, 0.85, 0.85);
+    
+    // Smooth transition from center to edges
+    float mixFactor = smoothstep(0.0, 0.7, dist);
+    vec3 col = mix(centerGray, edgeWhite, mixFactor);
+    
+    gl_FragColor = vec4(col, 1.0);
   }
 `;
 
@@ -231,9 +245,9 @@ export default function StoryInterface() {
   const [messages,       setMessages]       = useState<ChatMessage[]>([]);
   const [welcomeText,    setWelcomeText]    = useState<string>(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("rc_welcome_text") || "What would you like to do today?";
+      return localStorage.getItem("rc_welcome_text") || "Welcome to Raconteur. Every great journey begins with a choice. Where would you like your story to start today?";
     }
-    return "What would you like to do today?";
+    return "Welcome to Raconteur. Every great journey begins with a choice. Where would you like your story to start today?";
   });
 
   const { user } = useAuth();
@@ -250,9 +264,32 @@ export default function StoryInterface() {
     prevAuthStep.current = curr;
   }, [authFlow.authStep]);
 
+  useEffect(() => {
+    // Generate an anon session ID if not exists, and store in session storage.
+    let id = sessionStorage.getItem("rc_anon_session_id");
+    if (!id) {
+      id = "session_" + Math.random().toString(36).substr(2, 9);
+      sessionStorage.setItem("rc_anon_session_id", id);
+    }
+  }, []);
+
+  const saveMessageToAnonSession = async (text: string) => {
+    const id = sessionStorage.getItem("rc_anon_session_id");
+    if (!id) return;
+    try {
+      const { saveAnonMessage } = await import("@/app/actions/story");
+      await saveAnonMessage(id, text);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   // Save message to Firebase sessions collection
   const saveMessageToFirebase = useCallback(async (text: string) => {
-    if (!user?.uid) return;
+    if (!user?.uid) {
+      saveMessageToAnonSession(text);
+      return;
+    }
     try {
       await addDoc(collection(db, `sessions/${user.uid}/messages`), {
         text,
@@ -305,7 +342,12 @@ export default function StoryInterface() {
     setUserMenuOpen(false);
     // Clear messages when transitioning between scenes
     setMessages([]);
+    // Reset scroll position to ensure new scenes start at the top and clear keyboard offsets
+    window.scrollTo(0, 0);
   }, [sceneKey]);
+
+  const [inputVal, setInputVal] = useState("");
+  const [isAiLoading, setIsAiLoading] = useState(false);
 
   // ── Navigation ────────────────────────────────────────────────────────────
 
@@ -318,11 +360,12 @@ export default function StoryInterface() {
     }, 280);
   }, []);
 
-  const addMessage = useCallback((text: string) => {
+  const addMessage = useCallback((text: string, role: "bot" | "user" = "bot") => {
     const newMessage: ChatMessage = {
-      id: `${Date.now()}`,
+      id: `${Date.now()}-${Math.random()}`,
       text,
       timestamp: Date.now(),
+      role,
     };
     setMessages((prev) => [...prev, newMessage]);
     saveMessageToFirebase(text);
@@ -352,6 +395,29 @@ export default function StoryInterface() {
     transition(() => { authFlow.setAuthStep(null); });
   }, [transition, authFlow]);
 
+  const handleSendAiMessage = async () => {
+    if (!inputVal.trim() || isAiLoading) return;
+    const userMsg = inputVal;
+    setInputVal("");
+    addMessage(userMsg, "user");
+    
+    setIsAiLoading(true);
+    try {
+      const { generateStoryResponse } = await import("@/app/actions/story");
+      const result = await generateStoryResponse(userMsg);
+      if (result.success && result.text) {
+        addMessage(result.text, "bot");
+      } else {
+        addMessage("Oops, I encountered an error responding to that.", "bot");
+      }
+    } catch (e) {
+      console.error(e);
+      addMessage("I'm sorry, my story engine had a problem.", "bot");
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
   const handleBookSelect = useCallback(() => {
     // Load BookReader directly in the bubble instead of routing
     setBookSelected(true);
@@ -364,7 +430,23 @@ export default function StoryInterface() {
   // ── User pill ─────────────────────────────────────────────────────────────
 
   const renderUserPill = () => {
-    if (!user) return null;
+    if (!user) {
+      return (
+        <button
+          className={styles.userPill}
+          onClick={() => transition(() => authFlow.setAuthStep("phone-entry"))}
+        >
+          <div className={styles.userPillAvatar}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+          </div>
+          <span className={styles.userPillName}>Sign in / Sign up</span>
+        </button>
+      );
+    }
+    
     const rawFirst = user.displayName?.split(" ")[0] ?? user.email?.split("@")[0] ?? "there";
     const firstName = rawFirst.charAt(0).toUpperCase() + rawFirst.slice(1);
     const initials  = user.displayName
@@ -422,16 +504,47 @@ export default function StoryInterface() {
           <div className={styles.bubbleInner}>
             <div className={styles.messagesContainer}>
               {messages.map((msg) => (
-                <div key={msg.id} className={styles.messageRow}>
-                  <img src="/favicon.ico" alt="AI" className={styles.messageFavicon} />
-                  <div className={styles.messageBubble}>
+                <div key={msg.id} className={`${styles.messageRow} ${msg.role === "user" ? styles.messageRowUser : ""}`}>
+                  {msg.role === "bot" && (
+                    <img src="/favicon.ico" alt="AI" className={styles.messageFavicon} />
+                  )}
+                  <div className={`${styles.messageBubble} ${msg.role === "user" ? styles.userBubble : styles.botBubble}`}>
                     <p className={styles.messageText}>{msg.text}</p>
                   </div>
                 </div>
               ))}
+              {isAiLoading && (
+                <div className={styles.messageRow}>
+                  <img src="/favicon.ico" alt="AI" className={styles.messageFavicon} />
+                  <div className={`${styles.messageBubble} ${styles.botBubble}`}>
+                    <div className={styles.typingIndicator}>
+                      <span></span><span></span><span></span>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </div>
           </div>
+        </div>
+
+        <div className={styles.chatInputContainer}>
+            <input 
+              type="text" 
+              className={styles.chatInput} 
+              placeholder="Type your message..."
+              value={inputVal}
+              onChange={(e) => setInputVal(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSendAiMessage()}
+              disabled={isAiLoading}
+            />
+            <button 
+              className={styles.sendButton} 
+              onClick={handleSendAiMessage}
+              disabled={isAiLoading || !inputVal.trim()}
+            >
+              Send
+            </button>
         </div>
 
         <div className={styles.optionsBubble}>
@@ -467,7 +580,6 @@ export default function StoryInterface() {
     <>
       <div className={styles.heroBubble}>
         <div className={styles.bubbleInner}>
-          <img src="/favicon.ico" alt="" className={styles.heroLogo} />
           <p className={styles.heroText}>Choose your story</p>
           <button
             className={styles.bookItem}
@@ -533,12 +645,15 @@ export default function StoryInterface() {
   const renderAuth = (step: AuthStep) => {
     if (step === "entering") {
       return (
-        <div className={styles.heroBubble}>
-          <div className={styles.bubbleInner}>
-            <p className={styles.heroText}>Welcome!</p>
-            <p className={styles.subText}>Taking you to your story…</p>
+        <>
+          <div className={styles.heroBubble}>
+            <div className={styles.bubbleInner}>
+              <p className={styles.heroText}>Welcome!</p>
+              <p className={styles.subText}>Taking you to your story…</p>
+            </div>
           </div>
-        </div>
+          <div className={styles.optionsBubble} />
+        </>
       );
     }
 
@@ -561,18 +676,16 @@ export default function StoryInterface() {
               )}
             </div>
           </div>
-          <div className={styles.optSingle}>
+          <div className={styles.optionsBubble}>
             <button
               className={styles.optBoxWide}
-              onClick={authFlow.handleSendOTP}
+              onClick={() => transition(authFlow.handleSendOTP)}
               disabled={authFlow.phoneInput.length !== 10 || authFlow.authBusy}
             >
               <span className={styles.optLabel}>
                 {authFlow.authBusy ? "Sending…" : "Send OTP"}
               </span>
             </button>
-          </div>
-          <div className={styles.optSingle}>
             <button
               className={`${styles.optBoxWide} ${styles.optBoxGhost}`}
               onClick={exitAuth}
@@ -603,21 +716,19 @@ export default function StoryInterface() {
               )}
             </div>
           </div>
-          <div className={styles.optSingle}>
+          <div className={styles.optionsBubble}>
             <button
               className={styles.optBoxWide}
-              onClick={authFlow.handleVerifyOTP}
+              onClick={() => transition(authFlow.handleVerifyOTP)}
               disabled={authFlow.otpInput.length !== 6 || authFlow.authBusy}
             >
               <span className={styles.optLabel}>
                 {authFlow.authBusy ? "Verifying…" : "Verify"}
               </span>
             </button>
-          </div>
-          <div className={styles.optSingle}>
             <button
               className={`${styles.optBoxWide} ${styles.optBoxGhost}`}
-              onClick={() => authFlow.setAuthStep("phone-entry")}
+              onClick={() => transition(() => authFlow.setAuthStep("phone-entry"))}
               disabled={authFlow.authBusy}
             >
               <span className={styles.optLabel}>← Back</span>
@@ -640,7 +751,7 @@ export default function StoryInterface() {
                 value={authFlow.nameInput}
                 onChange={(e) => authFlow.setNameInput(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") authFlow.handleSaveName();
+                  if (e.key === "Enter") transition(authFlow.handleSaveName);
                 }}
                 autoFocus
               />
@@ -649,25 +760,27 @@ export default function StoryInterface() {
               )}
             </div>
           </div>
-          <div className={styles.optGrid2}>
-            <button
-              className={`${styles.optBox} ${styles.optBoxGhost}`}
-              style={{ "--delay": "50ms" } as React.CSSProperties}
-              onClick={exitAuth}
-              disabled={authFlow.authBusy}
-            >
-              <span className={styles.optLabel}>← Back</span>
-            </button>
-            <button
-              className={styles.optBox}
-              style={{ "--delay": "100ms" } as React.CSSProperties}
-              onClick={authFlow.handleSaveName}
-              disabled={authFlow.nameInput.trim().length < 2 || authFlow.authBusy}
-            >
-              <span className={styles.optLabel}>
-                {authFlow.authBusy ? "Saving…" : "Register"}
-              </span>
-            </button>
+          <div className={styles.optionsBubble}>
+            <div className={styles.optGrid2}>
+              <button
+                className={`${styles.optBox} ${styles.optBoxGhost}`}
+                style={{ "--delay": "50ms" } as React.CSSProperties}
+                onClick={exitAuth}
+                disabled={authFlow.authBusy}
+              >
+                <span className={styles.optLabel}>← Back</span>
+              </button>
+              <button
+                className={styles.optBox}
+                style={{ "--delay": "100ms" } as React.CSSProperties}
+                onClick={() => transition(authFlow.handleSaveName)}
+                disabled={authFlow.nameInput.trim().length < 2 || authFlow.authBusy}
+              >
+                <span className={styles.optLabel}>
+                  {authFlow.authBusy ? "Saving…" : "Register"}
+                </span>
+              </button>
+            </div>
           </div>
         </>
       );
@@ -688,30 +801,30 @@ export default function StoryInterface() {
               )}
             </div>
           </div>
-          <div className={styles.optGrid2}>
-            <button
-              className={`${styles.optBox} ${styles.optBoxGhost}`}
-              style={{ "--delay": "50ms" } as React.CSSProperties}
-              onClick={exitAuth}
-              disabled={authFlow.authBusy}
-            >
-              <span className={styles.optLabel}>← Back</span>
-            </button>
-            <button
-              className={styles.optBox}
-              style={{ "--delay": "100ms" } as React.CSSProperties}
-              onClick={authFlow.handleLinkGoogle}
-              disabled={authFlow.authBusy}
-            >
-              <span className={styles.optLabel}>
-                {authFlow.authBusy ? "Opening…" : "Link Google"}
-              </span>
-            </button>
-          </div>
-          <div className={styles.optSingle}>
+          <div className={styles.optionsBubble}>
+            <div className={styles.optGrid2}>
+              <button
+                className={`${styles.optBox} ${styles.optBoxGhost}`}
+                style={{ "--delay": "50ms" } as React.CSSProperties}
+                onClick={exitAuth}
+                disabled={authFlow.authBusy}
+              >
+                <span className={styles.optLabel}>← Back</span>
+              </button>
+              <button
+                className={styles.optBox}
+                style={{ "--delay": "100ms" } as React.CSSProperties}
+                onClick={() => transition(authFlow.handleLinkGoogle)}
+                disabled={authFlow.authBusy}
+              >
+                <span className={styles.optLabel}>
+                  {authFlow.authBusy ? "Opening…" : "Link Google"}
+                </span>
+              </button>
+            </div>
             <button
               className={`${styles.optBoxWide} ${styles.optBoxGhost}`}
-              onClick={authFlow.finalizeAuth}
+              onClick={() => transition(authFlow.finalizeAuth)}
               disabled={authFlow.authBusy}
             >
               <span className={styles.optLabel}>Skip for now</span>
