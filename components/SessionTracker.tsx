@@ -12,7 +12,20 @@ export default function SessionTracker() {
   useEffect(() => {
     // Register service worker
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {
+      navigator.serviceWorker.register("/sw.js").then((registration) => {
+        registration.onupdatefound = () => {
+          const installingWorker = registration.installing;
+          if (installingWorker) {
+            installingWorker.onstatechange = () => {
+              if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                if (confirm('A new version of Raconteur is available. Update now?')) {
+                  window.location.reload();
+                }
+              }
+            };
+          }
+        };
+      }).catch(() => {
         // SW registration failure is non-fatal
       });
     }
