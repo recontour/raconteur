@@ -270,7 +270,6 @@
 /* ─── Square option box ─────────────────────────────────────────────────────── */
 
 .optBox {
-  aspect-ratio: 1 / 1;
   border-radius: 22px;
   border: 1.5px solid #111;
   background: #fff;
@@ -281,7 +280,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
+  padding: 0.875rem 1.125rem;
 
   font-family: inherit;
   font-size: 0.88rem;
@@ -313,7 +312,7 @@
 
 .optBoxWide {
   width: 100%;
-  padding: 1.125rem 1.5rem;
+  padding: 0.875rem 1.5rem;
   border-radius: 22px;
   border: 1.5px solid #111;
   background: #fff;
@@ -558,4 +557,3 @@
   line-height:    1.4;
   text-align:     center;
 }
-
