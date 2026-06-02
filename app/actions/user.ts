@@ -402,5 +402,5 @@ export async function getWelcomeText(): Promise<string> {
   } catch (e) {
     console.error('getWelcomeText failed:', e);
   }
-  return 'Welcome to Raconteur. Every great journey begins with a choice. Where would you like your story to start today?';
+  return 'Welcome.. my name is Summer. How can I help you today?';
 }

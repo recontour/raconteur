@@ -8,11 +8,13 @@ import { signOut } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { useAuth } from "@/app/helper/auth";
+import { writeRagData } from "@/components/RAGdata";
 import { useAuthFlow, type AuthStep } from "@/hooks/useAuthFlow";
 import { getWelcomeText } from "@/app/actions/user";
 import BookReader from "./BookReader";
 import storyData from "@/data/entireStory.json";
 import styles from "./StoryInterface.module.css";
+import SummerRing from "./SummerRing";
 
 // ─── Message type ────────────────────────────────────────────────────────────
 
@@ -230,6 +232,8 @@ function setupBg(el: HTMLDivElement): () => void {
   };
 }
 
+// ─── SummerRing is imported from ./SummerRing ────────────────────────────────
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function StoryInterface() {
@@ -245,9 +249,9 @@ export default function StoryInterface() {
   const [messages,       setMessages]       = useState<ChatMessage[]>([]);
   const [welcomeText,    setWelcomeText]    = useState<string>(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("rc_welcome_text") || "Welcome to Raconteur. Every great journey begins with a choice. Where would you like your story to start today?";
+      return localStorage.getItem("rc_welcome_v2") || "Welcome.. my name is Summer. How can I help you today?";
     }
-    return "Welcome to Raconteur. Every great journey begins with a choice. Where would you like your story to start today?";
+    return "Welcome.. my name is Summer. How can I help you today?";
   });
 
   const { user } = useAuth();
@@ -304,7 +308,7 @@ export default function StoryInterface() {
   useEffect(() => {
     getWelcomeText().then((text) => {
       setWelcomeText(text);
-      localStorage.setItem("rc_welcome_text", text);
+      localStorage.setItem("rc_welcome_v2", text);
     }).catch(() => { /* non-fatal */ });
   }, []);
 
@@ -349,6 +353,21 @@ export default function StoryInterface() {
   const [inputVal, setInputVal] = useState("");
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isChatActive, setIsChatActive] = useState(false);
+  const [fontSize, setFontSize] = useState("0.95rem");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("rc_font_size");
+      if (saved) {
+        setFontSize(saved);
+      }
+    }
+  }, []);
+
+  const handleFontSelect = (size: string) => {
+    setFontSize(size);
+    localStorage.setItem("rc_font_size", size);
+  };
 
   // ── Navigation ────────────────────────────────────────────────────────────
 
@@ -409,11 +428,11 @@ export default function StoryInterface() {
       if (result.success && result.text) {
         addMessage(result.text, "bot");
       } else {
-        addMessage("Oops, I encountered an error responding to that.", "bot");
+        addMessage("I'm sorry, I'm having a bit of trouble processing that right now.", "bot");
       }
     } catch (e) {
       console.error(e);
-      addMessage("I'm sorry, my story engine had a problem.", "bot");
+      addMessage("It seems my story engine hit a snag. Let's try again?", "bot");
     } finally {
       setIsAiLoading(false);
     }
@@ -497,7 +516,12 @@ export default function StoryInterface() {
 
   const renderMessageIcon = (role: "bot" | "user") => {
     if (role === "bot") {
-      return <img src="/favicon.ico" alt="AI" className={styles.messageFaviconInner} />;
+      return (
+        <div className={styles.botIconWrapper}>
+          <SummerRing active={isAiLoading} size={28} />
+          <img src="/favicon.ico" alt="Summer" className={styles.summerFaviconMini} />
+        </div>
+      );
     }
     if (user?.photoURL) {
       return (
@@ -527,14 +551,24 @@ export default function StoryInterface() {
     return (
       <>
         <div className={styles.heroBubble}>
-          <div className={styles.bubbleInner}>
-            <div className={styles.messagesContainer}>
+          <div className={`${styles.bubbleInner} ${sceneId === "welcome" ? styles.bubbleInnerWelcome : ""}`}>
+            {sceneId === "welcome" && (
+              <div className={styles.summerHeroSection}>
+                <div className={styles.summerRingWrapper}>
+                  <SummerRing active={true} size={160} />
+                  <img src="/favicon.ico" alt="Summer" className={styles.summerFaviconCenter} />
+                </div>
+                <p className={styles.summerName}>SUMMER</p>
+                <p className={styles.summerTagline}>Your AI storytelling companion</p>
+              </div>
+            )}
+            <div className={`${styles.messagesContainer} ${sceneId === "welcome" ? styles.messagesScrollArea : ""}`}>
               {messages.map((msg) => (
                 <div key={msg.id} className={`${styles.messageRow} ${msg.role === "user" ? styles.messageRowUser : ""}`}>
                   <div className={`${styles.messageBubble} ${msg.role === "user" ? styles.userBubble : styles.botBubble}`}>
                     <div className={styles.messageContent}>
                       {renderMessageIcon(msg.role)}
-                      <p className={styles.messageText}>{msg.text}</p>
+                      <p className={styles.messageText} style={{ fontSize: fontSize }}>{msg.text}</p>
                     </div>
                   </div>
                 </div>
@@ -556,55 +590,81 @@ export default function StoryInterface() {
           </div>
         </div>
 
-        {isChatActive && (
-          <div className={styles.chatInputContainer}>
-              <input 
-                type="text" 
-                className={styles.chatInput} 
-                placeholder="Type your message..."
-                value={inputVal}
-                onChange={(e) => setInputVal(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSendAiMessage()}
-                disabled={isAiLoading}
-              />
-              <button 
-                className={styles.sendButton} 
-                onClick={handleSendAiMessage}
-                disabled={isAiLoading || !inputVal.trim()}
-              >
-                Send
-              </button>
-          </div>
-        )}
-
-        <div className={styles.optionsBubble}>
-          {isSingle ? (
-            <button
-              className={styles.optBoxWide}
-              onClick={() => navigate(def.options[0].next)}
-              disabled={exiting}
-            >
-              <span className={styles.optLabel}>{def.options[0].label}</span>
-            </button>
-          ) : (
-            <div className={styles.optGrid2}>
-              {def.options.map((opt, i) => (
-                <button
-                  key={opt.label}
-                  className={styles.optBox}
-                  style={{ "--delay": `${i * 50 + 50}ms` } as React.CSSProperties}
-                  onClick={() => navigate(opt.next)}
-                  disabled={exiting}
+          {isChatActive && (
+            <div className={styles.chatInputContainer}>
+                <input 
+                  type="text" 
+                  className={styles.chatInput} 
+                  placeholder="Type your message..."
+                  value={inputVal}
+                  onChange={(e) => setInputVal(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSendAiMessage()}
+                  disabled={isAiLoading}
+                />
+                <button 
+                  className={styles.sendButton} 
+                  onClick={handleSendAiMessage}
+                  disabled={isAiLoading || !inputVal.trim()}
                 >
-                  <span className={styles.optLabel}>{opt.label}</span>
+                  Send
                 </button>
-              ))}
             </div>
           )}
-        </div>
-      </>
-    );
-  };
+
+          <div className={styles.optionsBubble}>
+            {isSingle ? (
+              <button
+                className={styles.optBoxWide}
+                onClick={() => navigate(def.options[0].next)}
+                disabled={exiting}
+              >
+                <span className={styles.optLabel}>{def.options[0].label}</span>
+              </button>
+            ) : (
+              <div className={styles.optGrid2}>
+                {def.options.map((opt, i) => (
+                  <button
+                    key={opt.label}
+                    className={styles.optBox}
+                    style={{ "--delay": `${i * 50 + 50}ms` } as React.CSSProperties}
+                    onClick={() => navigate(opt.next)}
+                    disabled={exiting}
+                  >
+                    <span className={styles.optLabel}>{opt.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+              <p className={styles.subText} style={{ textAlign: "center", marginTop: 0, marginBottom: "0.5rem" }}>Text Size</p>
+              <div className={styles.optGrid2} style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+                {[
+                  { label: "Aa", size: "0.80rem" },
+                  { label: "Aa", size: "0.95rem" },
+                  { label: "Aa", size: "1.10rem" },
+                  { label: "Aa", size: "1.25rem" }
+                ].map((opt, i) => (
+                  <button
+                    key={i}
+                    className={styles.optBox}
+                    style={{ 
+                      padding: "0.5rem", 
+                      fontSize: opt.size,
+                      background: fontSize === opt.size ? 'rgba(255,255,255,0.1)' : 'transparent',
+                      opacity: fontSize === opt.size ? 1 : 0.6
+                    }}
+                    onClick={() => handleFontSelect(opt.size)}
+                  >
+                    <span className={styles.optLabel}>{opt.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      );
+    };
 
   const renderStoryScene = () => (
     <>
