@@ -9,14 +9,27 @@ export async function recordVisit(sessionId: string) {
       { visits: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() },
       { merge: true },
     );
-    // Also stamp the anon doc with a first-seen timestamp
+    // First visit — seed the seenAt array with the current timestamp
     await adminDb.collection("anon").doc(sessionId).set(
-      { firstSeen: FieldValue.serverTimestamp() },
+      { seenAt: FieldValue.arrayUnion(new Date().toISOString()) },
       { merge: true },
     );
     return { success: true };
   } catch (error) {
     console.error("Error recording visit:", error);
+    return { success: false };
+  }
+}
+
+export async function recordPageView(sessionId: string) {
+  try {
+    await adminDb.collection("anon").doc(sessionId).set(
+      { seenAt: FieldValue.arrayUnion(new Date().toISOString()) },
+      { merge: true },
+    );
+    return { success: true };
+  } catch (error) {
+    console.error("Error recording page view:", error);
     return { success: false };
   }
 }

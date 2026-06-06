@@ -278,24 +278,17 @@ export async function createAnonSession(anonId: string, ua: string, userId?: str
                     /safari/i.test(ua) ? 'Safari' : 
                     /firefox/i.test(ua) ? 'Firefox' : 'Other';
 
-    const sessionData = {
+    const sessionRef = adminDb.collection('sessions').doc(anonId);
+
+    const sessionSetPromise = sessionRef.set({
       anonId,
       ip,
       ua,
-      device,   // Saved separately as requested
-      browser,  // Saved separately as requested
-      lastSeen: FieldValue.serverTimestamp(),
+      device,
+      browser,
       userId: userId || null,
-    };
-
-    const sessionRef = adminDb.collection('sessions').doc(anonId);
-    
-    // Use set with merge: true to ensure device/browser fields are added 
-    // even if the document was created previously without them.
-    const sessionSetPromise = sessionRef.set({
-      ...sessionData,
-      // If it's a new doc, set firstSeen. If existing, it stays.
-      firstSeen: FieldValue.serverTimestamp(), 
+      // Append this visit's ISO timestamp to the seenAt array
+      seenAt: FieldValue.arrayUnion(new Date().toISOString()),
       visits: FieldValue.increment(1),
     }, { merge: true });
 
