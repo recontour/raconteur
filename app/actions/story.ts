@@ -2,6 +2,32 @@
 
 import { adminDb } from "@/lib/firebase-admin";
 
+export async function saveAnonProgress(sessionId: string, page: number, time: number) {
+  try {
+    await adminDb.collection("anon").doc(sessionId).set(
+      { progress: { page, time }, updatedAt: new Date().getTime() },
+      { merge: true },
+    );
+    return { success: true };
+  } catch (error) {
+    console.error("Error saving anon progress:", error);
+    return { success: false };
+  }
+}
+
+export async function getAnonProgress(sessionId: string): Promise<{ page: number; time: number } | null> {
+  try {
+    const doc = await adminDb.collection("anon").doc(sessionId).get();
+    if (!doc.exists) return null;
+    const data = doc.data();
+    if (typeof data?.progress?.page !== "number") return null;
+    return data.progress as { page: number; time: number };
+  } catch (error) {
+    console.error("Error getting anon progress:", error);
+    return null;
+  }
+}
+
 export async function saveAnonMessage(sessionId: string, text: string) {
   try {
     await adminDb.collection("anon").doc(sessionId).collection("messages").add({

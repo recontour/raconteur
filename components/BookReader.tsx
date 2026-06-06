@@ -10,6 +10,7 @@ import { useAuth } from "@/app/helper/auth";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { getStoryProgress, saveStoryProgress } from "@/app/actions/user";
+import { getAnonProgress, saveAnonProgress } from "@/app/actions/story";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface Story {
@@ -105,19 +106,36 @@ export default function BookReader({ stories }: BookReaderProps) {
     return () => document.removeEventListener("mousedown", handler);
   }, [pickerOpen]);
 
+  // ── Get or create the persistent anon session ID ─────────────────────
+  const getAnonId = (): string => {
+    let id = localStorage.getItem("rc_anon_session_id");
+    if (!id) {
+      id = "session_" + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem("rc_anon_session_id", id);
+    }
+    return id;
+  };
+
   // ── Restore progress: DB first, localStorage fallback ─────────────────
   useEffect(() => {
     const restore = async () => {
       let progress: { page: number; time: number } | null = null;
 
-      if (user) {
-        progress = await getStoryProgress(user.uid);
-      }
+      // Always try DB first using the anon ID
+      const anonId = getAnonId();
+      progress = await getAnonProgress(anonId);
 
+      // Fall back to localStorage if nothing in DB yet
       if (!progress) {
         try {
           const raw = localStorage.getItem(PROGRESS_KEY);
-          if (raw) progress = JSON.parse(raw) as { page: number; time: number };
+          if (raw) {
+            progress = JSON.parse(raw) as { page: number; time: number };
+            // Back-fill the DB so future loads across devices work
+            if (progress && typeof progress.page === "number") {
+              saveAnonProgress(anonId, progress.page, progress.time ?? 0);
+            }
+          }
         } catch {}
       }
 
@@ -140,10 +158,9 @@ export default function BookReader({ stories }: BookReaderProps) {
   // ── Persist progress to localStorage + DB (debounced 8s) ──────────────
   const persistProgress = (p: number, t: number) => {
     try { localStorage.setItem(PROGRESS_KEY, JSON.stringify({ page: p, time: t })); } catch {}
-    if (!user) return;
     if (dbSaveTimerRef.current) clearTimeout(dbSaveTimerRef.current);
     dbSaveTimerRef.current = setTimeout(() => {
-      saveStoryProgress(user.uid, p, t);
+      saveAnonProgress(getAnonId(), p, t);
     }, 8000);
   };
 
@@ -152,8 +169,8 @@ export default function BookReader({ stories }: BookReaderProps) {
     didNavigate.current = true;
     setPage(p);
     try { localStorage.setItem(PROGRESS_KEY, JSON.stringify({ page: p, time: 0 })); } catch {}
-    if (user && progressRestoredRef.current) {
-      saveStoryProgress(user.uid, p, 0);
+    if (progressRestoredRef.current) {
+      saveAnonProgress(getAnonId(), p, 0);
     }
   };
 

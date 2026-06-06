@@ -269,16 +269,17 @@ export default function StoryInterface() {
   }, [authFlow.authStep]);
 
   useEffect(() => {
-    // Generate an anon session ID if not exists, and store in session storage.
-    let id = sessionStorage.getItem("rc_anon_session_id");
+    // Generate an anon session ID if not exists, persist in localStorage so it
+    // survives tab/browser closes and works across reloads on the same device.
+    let id = localStorage.getItem("rc_anon_session_id");
     if (!id) {
       id = "session_" + Math.random().toString(36).substr(2, 9);
-      sessionStorage.setItem("rc_anon_session_id", id);
+      localStorage.setItem("rc_anon_session_id", id);
     }
   }, []);
 
   const saveMessageToAnonSession = async (text: string) => {
-    const id = sessionStorage.getItem("rc_anon_session_id");
+    const id = localStorage.getItem("rc_anon_session_id");
     if (!id) return;
     try {
       const { saveAnonMessage } = await import("@/app/actions/story");
