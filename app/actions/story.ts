@@ -1,6 +1,25 @@
 "use server";
 
 import { adminDb } from "@/lib/firebase-admin";
+import { FieldValue } from "firebase-admin/firestore";
+
+export async function recordVisit(sessionId: string) {
+  try {
+    await adminDb.collection("stats").doc("global").set(
+      { visits: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() },
+      { merge: true },
+    );
+    // Also stamp the anon doc with a first-seen timestamp
+    await adminDb.collection("anon").doc(sessionId).set(
+      { firstSeen: FieldValue.serverTimestamp() },
+      { merge: true },
+    );
+    return { success: true };
+  } catch (error) {
+    console.error("Error recording visit:", error);
+    return { success: false };
+  }
+}
 
 export async function saveAnonProgress(sessionId: string, page: number, time: number) {
   try {

@@ -275,6 +275,8 @@ export default function StoryInterface() {
     if (!id) {
       id = "session_" + Math.random().toString(36).substr(2, 9);
       localStorage.setItem("rc_anon_session_id", id);
+      // New visitor — increment the global counter
+      import("@/app/actions/story").then(({ recordVisit }) => recordVisit(id!)).catch(() => {});
     }
   }, []);
 
