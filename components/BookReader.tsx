@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import AudioPlayer from "./AudioPlayer";
 import BookBackground from "./BookBackground";
 import SyncParagraph, { WordTiming } from "./SyncParagraph";
@@ -75,6 +76,7 @@ const PROGRESS_KEY = "raconteur_progress";
 
 export default function BookReader({ stories }: BookReaderProps) {
   const [page, setPage] = useState(0);
+  const router = useRouter();
 
   // Ref holds the time to seek to when the restored page's AudioPlayer mounts.
   // Cleared to 0 after any manual navigation so new pages always start from 0.
@@ -202,7 +204,7 @@ export default function BookReader({ stories }: BookReaderProps) {
       <div className={styles.frame}>
 
         {/* User avatar — top left */}
-        <button className={styles.avatarBtn} aria-label="Sign out" onClick={() => signOut(auth)}>
+        <button className={styles.avatarBtn} aria-label="Go home" onClick={() => router.push("/")}>
           {user?.photoURL ? (
             <img src={user.photoURL} alt="" referrerPolicy="no-referrer" />
           ) : (
