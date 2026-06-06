@@ -439,9 +439,8 @@ export default function StoryInterface() {
   };
 
   const handleBookSelect = useCallback(() => {
-    // Load BookReader directly in the bubble instead of routing
-    setBookSelected(true);
-  }, []);
+    router.push("/book");
+  }, [router]);
 
   const handleCloseReader = useCallback(() => {
     setBookSelected(false);
@@ -451,20 +450,7 @@ export default function StoryInterface() {
 
   const renderUserPill = () => {
     if (!user) {
-      return (
-        <button
-          className={styles.userPill}
-          onClick={() => transition(() => authFlow.setAuthStep("phone-entry"))}
-        >
-          <div className={styles.userPillAvatar}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
-          </div>
-          <span className={styles.userPillName}>Sign in / Sign up</span>
-        </button>
-      );
+      return null;
     }
     
     const rawFirst = user.displayName?.split(" ")[0] ?? user.email?.split("@")[0] ?? "there";
@@ -682,6 +668,9 @@ export default function StoryInterface() {
               {STORY_META.author} · {STORY_META.chapters} chapters
             </span>
           </button>
+          <p className={styles.subText} style={{ marginTop: "2rem", opacity: 0.55 }}>
+            More stories coming soon
+          </p>
         </div>
       </div>
 
@@ -713,10 +702,8 @@ export default function StoryInterface() {
 
     return (
       <>
-        <div className={styles.heroBubble}>
-          <div className={styles.bookReaderContainer}>
-            <BookReader stories={stories} />
-          </div>
+        <div className={styles.bookReaderContainer}>
+          <BookReader stories={stories} />
         </div>
 
         <div className={styles.optionsBubble}>
@@ -929,7 +916,6 @@ export default function StoryInterface() {
 
   const renderContent = () => {
     if (bookSelected) return renderBookReaderScene();
-    if (authFlow.authStep !== null) return renderAuth(authFlow.authStep);
     if (sceneId === "story")        return renderStoryScene();
     return renderStaticScene(SCENES[sceneId]);
   };

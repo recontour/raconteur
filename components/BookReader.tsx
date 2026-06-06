@@ -305,7 +305,7 @@ export default function BookReader({ stories }: BookReaderProps) {
                             </svg>
                           </button>
                         ) : (
-                          <div className={styles.theEnd}>— The End —</div>
+                          <div className={styles.theEnd}>— More stories coming soon —</div>
                         )
                       ) : (
                         <AudioPlayer
