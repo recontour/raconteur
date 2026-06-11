@@ -1,13 +1,13 @@
-/* ─── Root ─────────────────────────────────────────────────────────────────── */
+/* --- Root -------------------------------------------------------------------- */
 
 .root {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
-  height: 100dvh;                  /* static fallback */
-  height: var(--vp-h, 100dvh);     /* shrinks when virtual keyboard opens */
-  background: #ffffff;
+  height: 100dvh;
+  height: var(--vp-h, 100dvh);
+  background: linear-gradient(160deg, #ffffff 0%, #d0d0d8 55%, #4a4a55 100%);
   overflow: hidden;
   font-family:
     -apple-system,
@@ -22,807 +22,257 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ─── WebGL canvas ──────────────────────────────────────────────────────────── */
+/* --- Centered column (max 480px) --------------------------------------------- */
 
-.bg {
+.container {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  height: var(--vp-h, 100dvh);
+  display: flex;
+  flex-direction: column;
+  padding: 0 1.25rem 1.5rem;
+  box-sizing: border-box;
+  gap: 1rem;
+}
+
+/* --- Ring section - top ~33% ------------------------------------------------- */
+
+.ringSection {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 33vh;
+  min-height: 180px;
+  padding-top: 4px;
+}
+
+.ringButton {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 50%;
+  -webkit-tap-highlight-color: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ringButton:disabled {
+  cursor: default;
+}
+
+/* Soft radial backdrop so ring pops on light bg */
+.ringButton::before {
+  content: "";
   position: absolute;
-  inset: 0;
+  inset: -18px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.55) 28%,
+    rgba(255, 255, 255, 0.22) 56%,
+    transparent 78%
+  );
+  pointer-events: none;
   z-index: 0;
 }
 
-/* ─── Scene ─────────────────────────────────────────────────────────────────── */
-
-.scene {
+/* Large "S" logo centred on ring */
+.ringLogo {
   position: absolute;
-  inset: 0;
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  animation: sceneIn 0.54s cubic-bezier(0.34, 1.38, 0.64, 1) both;
-}
-
-.sceneExit {
-  animation: sceneOut 0.26s cubic-bezier(0.4, 0, 1, 1) forwards;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
   pointer-events: none;
-}
-
-@keyframes sceneIn {
-  from { opacity: 0; transform: translateY(30px); }
-  to   { opacity: 1; transform: translateY(0);    }
-}
-
-@keyframes sceneOut {
-  from { opacity: 1; transform: translateY(0);     filter: blur(0px); }
-  to   { opacity: 0; transform: translateY(-22px); filter: blur(5px); }
-}
-
-/* ─── Header ────────────────────────────────────────────────────────────────── */
-
-.header {
-  flex-shrink: 0;
-  padding: 3.2rem 1.75rem 0;
-}
-
-.wordmark {
-  display: block;
-  font-size: 0.60rem;
-  font-weight: 600;
-  letter-spacing: 0.20em;
-  text-transform: uppercase;
-  color: rgba(0, 0, 0, 0.22);
+  font-size: 2.6rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  color: rgba(40, 40, 60, 0.85);
+  filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.80));
   user-select: none;
+  line-height: 1;
 }
 
-/* ─── Layout ────────────────────────────────────────────────────────────────── */
+/* --- Pre-tap hint (shown before ring is clicked) ----------------------------- */
 
-.layout {
+.preHint {
   flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  padding: 1.25rem 1.25rem 2rem;
-  gap: 0.875rem;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* ─── Hero bubble ───────────────────────────────────────────────────────────── */
-
-.heroBubble {
-  flex: 1;
-  min-height: 0;
-  border-radius: 32px;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.04),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.3);
-  overflow: hidden;
-}
-
-.bubbleInner {
-  height: 100%;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 2.25rem 2rem;
-  box-sizing: border-box;
-  text-align: center;
+  gap: 0.35rem;
+  animation: hintIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.4s both;
 }
 
-.bubbleInner::-webkit-scrollbar { display: none; }
+.preHintText {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: rgba(30, 30, 50, 0.40);
+}
 
-/* ─── User pill (top of layout, full-width) ──────────────────────────────────── */
+.preHintCta {
+  margin: 0;
+  font-size: 1.0rem;
+  font-weight: 500;
+  letter-spacing: -0.022em;
+  color: rgba(15, 15, 35, 0.70);
+}
 
-.userPill {
-  flex-shrink:   0;
-  width:         100%;
-  display:       flex;
-  align-items:   center;
-  gap:           0.75rem;
-  padding:       0.875rem 1.125rem;
-  border-radius: 24px;
-  border:        1px solid rgba(255, 255, 255, 0.6);
-  background:    rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
+@keyframes hintIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+/* --- Main bubble (hero message area) ----------------------------------------- */
+
+.heroBubble {
+  flex-shrink: 0;
+  border-radius: 16px;
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(40px) saturate(1.8);
+  -webkit-backdrop-filter: blur(40px) saturate(1.8);
   box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.04),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.3);
-  font-family:   inherit;
-  text-align:    left;
-  cursor:        pointer;
-  -webkit-tap-highlight-color: transparent;
-  animation:     optIn 0.52s cubic-bezier(0.34, 1.52, 0.64, 1) 30ms both;
-  transition:    background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.userPill:active:not(.userPillOpen) {
-  transform:  scale(0.98);
-  background: rgba(255, 255, 255, 0.3);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
-}
-
-.userPillOpen {
-  cursor: default;
-}
-
-.userPillAvatar {
-  width:          28px;
-  height:         28px;
-  border-radius:  50%;
-  overflow:       hidden;
-  background:     rgba(0, 0, 0, 0.08);
-  flex-shrink:    0;
-  display:        flex;
-  align-items:    center;
-  justify-content: center;
-  font-size:      11px;
-  font-weight:    600;
-  color:          #555;
-  letter-spacing: 0.02em;
-}
-
-.userPillName {
-  font-size:      0.92rem;
-  font-weight:    500;
-  color:          #1d1d1f;
-  letter-spacing: -0.015em;
-}
-/* ─── Hero pill (nav scenes — top compact bar) ────────────────────────────────── */
-
-.heroPill {
-  flex:           1;
-  min-height:     0;
-  border-radius:  32px;
-  border:         1px solid rgba(255, 255, 255, 0.6);
-  background:     rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.04),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.3);
-  display:        flex;
-  flex-direction: column;
-  overflow:       hidden;
-  animation:      sceneIn 0.54s cubic-bezier(0.34, 1.38, 0.64, 1) both;
-}
-
-.heroPillTap {
-  flex-shrink:    0;
-  min-width:      0;
-  width:          100%;
-  padding:        2.5rem 2rem 1.5rem;
-  text-align:     center;
-}
-
-.heroPillTap:active:not(:disabled) {
-  background: rgba(0, 0, 0, 0.03);
-}
-
-.heroPillTap:disabled {
-  cursor: default;
-}
-
-.heroPillOptions {
-  flex:           1;
-  min-height:     0;
-  overflow-y:     auto;
-  -webkit-overflow-scrolling: touch;
-  padding:        0 1.25rem 1.5rem;
-  display:        flex;
-  flex-direction: column;
-  gap:            0.75rem;
-  animation:      optIn 0.38s cubic-bezier(0.34, 1.38, 0.64, 1) both;
-}
-
-/* .heroPillOpen — pill stays flex:1, tap button disabled, options fill remaining space */
-
-/* ─── Options bubble (sits below heroBubble) ─────────────────────────────────── */
-
-.optionsBubble {
-  flex-shrink:    0;
-  display:        flex;
-  flex-direction: column;
-  gap:            0.75rem;
-  animation:      optIn 0.38s cubic-bezier(0.34, 1.38, 0.64, 1) both;
-}
-
-.heroLogo {
-  width:         48px;
-  height:        48px;
-  object-fit:    contain;
-  margin-bottom: 1rem;
+    0 4px 24px rgba(0, 0, 0, 0.06),
+    0 1px 0 rgba(255, 255, 255, 0.40) inset;
+  padding: 1.4rem 1.5rem;
+  min-height: 5.5rem;
+  /* Roughly 5 lines */
+  max-height: calc(5 * 1.65rem + 3rem);
+  overflow: hidden;
 }
 
 .heroText {
   margin: 0;
-  font-size: 1.35rem;
-  line-height: 1.50;
+  font-size: 1.10rem;
+  line-height: 1.60;
   font-weight: 500;
-  color: #1d1d1f;
-  letter-spacing: -0.022em;
-  white-space: normal;
+  color: rgba(15, 15, 30, 0.90);
+  letter-spacing: -0.024em;
+  white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: break-word;
-  max-width: 100%;
 }
 
-.subText {
-  margin: 0.75rem 0 0;
-  font-size: 0.85rem;
-  line-height: 1.5;
-  font-weight: 400;
-  color: rgba(0, 0, 0, 0.38);
-  letter-spacing: -0.01em;
+/* Blinking cursor during typewriter */
+.typeCursor {
+  display: inline-block;
+  width: 2px;
+  margin-left: 1px;
+  background: rgba(60, 80, 160, 0.70);
+  border-radius: 1px;
+  vertical-align: text-bottom;
+  height: 1.1em;
+  animation: cursorBlink 0.75s step-end infinite;
 }
 
-/* ─── 2-column grid ─────────────────────────────────────────────────────────── */
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
 
-.optGrid2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
+/* --- 3x2 button grid --------------------------------------------------------- */
+
+.optGrid {
   flex-shrink: 0;
+  margin-top: auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.5rem;
+  animation: gridIn 0.42s cubic-bezier(0.34, 1.28, 0.64, 1) both;
 }
 
-/* ─── Square option box ─────────────────────────────────────────────────────── */
+@keyframes gridIn {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+/* --- Option button ----------------------------------------------------------- */
 
 .optBox {
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
+  border-radius: 10px;
+  border: none;
+  background: rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(32px) saturate(1.6);
+  -webkit-backdrop-filter: blur(32px) saturate(1.6);
   box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.04),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+    0 2px 12px rgba(0, 0, 0, 0.05),
+    0 1px 0 rgba(255, 255, 255, 0.35) inset;
 
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0.875rem 1.125rem;
+  padding: 0.80rem 0.5rem;
+  min-height: 3.0rem;
+  aspect-ratio: auto;
 
   font-family: inherit;
-  font-size: 0.88rem;
+  font-size: 0.84rem;
   font-weight: 500;
-  color: #1d1d1f;
+  color: rgba(15, 15, 35, 0.82);
   text-align: center;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.020em;
+  line-height: 1.25;
 
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-
-  animation: optIn 0.52s cubic-bezier(0.34, 1.52, 0.64, 1) var(--delay, 60ms) both;
-  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: background 0.15s ease, transform 0.15s ease;
+  animation: optIn 0.48s cubic-bezier(0.34, 1.46, 0.64, 1) var(--delay, 0ms) both;
 }
 
 .optBox:active:not(:disabled) {
-  transform: scale(0.95);
-  background: rgba(255, 255, 255, 0.4);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+  transform: scale(0.94);
+  background: rgba(255, 255, 255, 0.70);
 }
 
-.optBox:disabled { cursor: default; }
-
-/* ─── Single wide option ────────────────────────────────────────────────────── */
-
-.optSingle {
-  flex-shrink: 0;
+.optBox:disabled {
+  cursor: default;
+  opacity: 0.28;
 }
 
-.optBoxWide {
-  width: 100%;
-  padding: 0.875rem 1.5rem;
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
-  box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.04),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.4);
-
-  font-family: inherit;
-  font-size: 0.92rem;
-  font-weight: 500;
-  color: #1d1d1f;
-  text-align: center;
-  letter-spacing: -0.01em;
-
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-
-  animation: optIn 0.52s cubic-bezier(0.34, 1.52, 0.64, 1) var(--delay, 60ms) both;
-  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+/* Back / login slot - bottom-right, muted */
+.optBoxBack {
+  color: rgba(60, 60, 90, 0.50);
+  border-color: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.25);
 }
 
-.optBoxWide:active:not(:disabled) {
-  transform: scale(0.97);
-  background: rgba(255, 255, 255, 0.4);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+/* Admin "Generate for me" — highlighted so it stands out */
+.optBoxAdmin {
+  color: rgba(30, 80, 180, 0.90);
+  border-color: rgba(80, 140, 255, 0.45);
+  background: rgba(180, 210, 255, 0.40);
 }
 
-.optBoxWide:disabled { cursor: default; }
-
-/* ─── Option label ──────────────────────────────────────────────────────────── */
-
-.optLabel {
-  pointer-events: none;
-  line-height: 1.3;
+.optBoxAdmin:disabled {
+  opacity: 0.60;
+  cursor: wait;
 }
-
-/* ─── Keyframes ─────────────────────────────────────────────────────────────── */
 
 @keyframes optIn {
-  from { opacity: 0; transform: translateY(22px) scale(0.93); }
+  from { opacity: 0; transform: translateY(14px) scale(0.94); }
   to   { opacity: 1; transform: translateY(0)    scale(1);    }
 }
 
-/* ─── Ghost / muted button variant ─────────────────────────────────────────── */
+/* --- Scene enter (content swap) ---------------------------------------------- */
 
-.optBoxGhost {
-  border-color: rgba(0, 0, 0, 0.14) !important;
-  color: rgba(0, 0, 0, 0.38) !important;
+.sceneEnter {
+  animation: sceneIn 0.28s ease both;
 }
 
-.optBoxGhost:active:not(:disabled) {
-  background: #f4f4f2 !important;
+@keyframes sceneIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
-
-/* ─── Bubble inner list variant ─────────────────────────────────────────────── */
-
-.bubbleInnerList {
-  justify-content: flex-start !important;
-  align-items:     stretch    !important;
-  padding-top:     1.75rem;
-}
-
-/* ─── Book list ─────────────────────────────────────────────────────────────── */
-
-.bookList {
-  display:        flex;
-  flex-direction: column;
-  gap:            0.5rem;
-  margin-top:     1rem;
-  width:          100%;
-}
-
-.bookItem {
-  display:        flex;
-  flex-direction: column;
-  align-items:    flex-start;
-  gap:            0.3rem;
-  width:          100%;
-  padding:        1rem 1.125rem;
-  border-radius:  18px;
-  border:         1px solid rgba(255, 255, 255, 0.6);
-  background:     rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
-  box-shadow:     0 2px 8px rgba(0, 0, 0, 0.02);
-  cursor:         pointer;
-  text-align:     left;
-  font-family:    inherit;
-  -webkit-tap-highlight-color: transparent;
-  animation:      optIn 0.52s cubic-bezier(0.34, 1.52, 0.64, 1) var(--delay, 60ms) both;
-  transition:     background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.bookItem:active:not(:disabled) {
-  transform:    scale(0.98);
-  background:   rgba(255, 255, 255, 0.3);
-  box-shadow:   0 1px 4px rgba(0, 0, 0, 0.03);
-}
-
-.bookItem:disabled { cursor: default; opacity: 0.5; }
-
-.bookTitle {
-  font-size:      0.95rem;
-  font-weight:    500;
-  color:          #1d1d1f;
-  letter-spacing: -0.015em;
-  line-height:    1.3;
-  pointer-events: none;
-}
-
-.bookMeta {
-  font-size:      0.78rem;
-  font-weight:    400;
-  color:          rgba(0, 0, 0, 0.40);
-  letter-spacing: -0.005em;
-  pointer-events: none;
-}
-
-/* ─── Phone row ─────────────────────────────────────────────────────────────── */
-
-/* (kept for reference, no longer used in phone-entry) */
-.phoneRow {
-  display:     flex;
-  align-items: center;
-  gap:         0.5rem;
-  margin-top:  1.25rem;
-  width:       100%;
-}
-
-.prefix {
-  font-size:      0.9rem;
-  font-weight:    500;
-  color:          rgba(0, 0, 0, 0.50);
-  letter-spacing: -0.01em;
-  white-space:    nowrap;
-  flex-shrink:    0;
-}
-
-/* ─── Digit input row (OTP / single-row) ──────────────────────────────────── */
-
-.digitRow {
-  display:     flex;
-  gap:         0.35rem;
-  margin-top:  1.25rem;
-  width:       100%;
-  justify-content: center;
-}
-
-.digitBox {
-  flex:           1;
-  min-width:      0;
-  aspect-ratio:   1 / 1;
-  max-width:      3.4rem;
-  border-radius:  12px;
-  border:         1px solid rgba(0, 0, 0, 0.15);
-  background:     rgba(255, 255, 255, 0.7);
-  box-shadow:     inset 0 1px 3px rgba(0,0,0,0.02);
-  font-family:    inherit;
-  font-size:      1.1rem;
-  font-weight:    500;
-  color:          #1d1d1f;
-  text-align:     center;
-  outline:        none;
-  caret-color:    transparent;
-  -webkit-tap-highlight-color: transparent;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.digitBox:focus {
-  border-color: rgba(0,0,0,0.3);
-  background:   #fff;
-  box-shadow:   0 0 0 4px rgba(0, 0, 0, 0.05);
-}
-
-/* Inside .phoneRow the digit row fills remaining space */
-.phoneRow .digitRow {
-  margin-top: 0;
-  flex:       1;
-}
-
-/* ─── Digit grid (2×5 phone input) ───────────────────────────────────────────── */
-
-.digitGrid {
-  display:               grid;
-  grid-template-columns: repeat(5, 3rem);
-  gap:                   0.4rem;
-  margin-top:            1.25rem;
-  justify-content:       center;
-  align-self:            stretch;
-}
-
-.digitBoxLg {
-  height:         3.2rem;
-  border-radius:  12px;
-  border:         1px solid rgba(0, 0, 0, 0.15);
-  background:     rgba(255, 255, 255, 0.7);
-  box-shadow:     inset 0 1px 3px rgba(0,0,0,0.02);
-  font-family:    inherit;
-  font-size:      1.1rem;
-  font-weight:    500;
-  color:          #1d1d1f;
-  text-align:     center;
-  outline:        none;
-  appearance:     none;
-  -webkit-appearance: none;
-  -webkit-tap-highlight-color: transparent;
-  caret-color:    transparent;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.digitBoxLg:focus {
-  border-color: rgba(0,0,0,0.3);
-  background:   #fff;
-  box-shadow:   0 0 0 4px rgba(0, 0, 0, 0.05);
-}
-
-/* ─── Text input (name field) ───────────────────────────────────────────────── */
-
-.authInput {
-  display:        block;
-  width:          100%;
-  margin-top:     1.25rem;
-  padding:        1rem 1.125rem;
-  border-radius:  16px;
-  border:         1px solid rgba(0, 0, 0, 0.15);
-  background:     rgba(255, 255, 255, 0.7);
-  box-shadow:     inset 0 1px 3px rgba(0,0,0,0.02);
-  font-family:    inherit;
-  font-size:      1rem;
-  font-weight:    400;
-  color:          #1d1d1f;
-  outline:        none;
-  box-sizing:     border-box;
-  -webkit-tap-highlight-color: transparent;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.authInput:focus {
-  border-color: rgba(0,0,0,0.3);
-  background:   #fff;
-  box-shadow:   0 0 0 4px rgba(0, 0, 0, 0.05);
-}
-
-.authInput::placeholder { color: rgba(0, 0, 0, 0.28); }
-
-/* ─── Auth error message ────────────────────────────────────────────────────── */
-
-.authError {
-  margin:         0.75rem 0 0;
-  font-size:      0.80rem;
-  font-weight:    400;
-  color:          #c0392b;
-  letter-spacing: -0.005em;
-  line-height:    1.4;
-  text-align:     center;
-}
-
-/* ─── Chat Messages Container ───────────────────────────────────────────────── */
-
-.messagesContainer {
-  display:        flex;
-  flex-direction: column;
-  width:          100%;
-  gap:            0.75rem;
-  padding:        0;
-}
-
-.messageRow {
-  display:        flex;
-  align-items:    flex-start;
-  gap:            0.75rem;
-  animation:      optIn 0.52s cubic-bezier(0.34, 1.52, 0.64, 1) both;
-}
-
-.messageFavicon {
-  width:         32px;
-  height:        32px;
-  object-fit:    contain;
-  flex-shrink:   0;
-  border-radius: 50%;
-}
-
-.messageBubble {
-  flex:              1;
-  background:        rgba(255, 255, 255, 0.15);
-  backdrop-filter:   blur(32px);
-  -webkit-backdrop-filter: blur(32px);
-  border:            1px solid rgba(255, 255, 255, 0.4);
-  box-shadow:        0 2px 8px rgba(0, 0, 0, 0.02);
-  border-radius:     18px;
-  padding:           0.75rem 1rem;
-  max-width:         100%;
-}
-
-.messageText {
-  margin:            0;
-  font-size:         0.95rem;
-  line-height:       1.5;
-  font-weight:       400;
-  color:             #1d1d1f;
-  letter-spacing:    -0.01em;
-  word-break:        break-word;
-  overflow-wrap:     break-word;
-  white-space:       normal;
-}
-
-.chatInputContainer {
-  display: flex;
-  gap: 8px;
-  padding: 0 0 8px 0;
-  width: 100%;
-}
-.chatInput {
-  flex: 1;
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
-  padding: 0.875rem 1.125rem;
-  font-family: inherit;
-  font-size: 0.95rem;
-  color: #1d1d1f;
-  outline: none;
-}
-.sendButton {
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  background: rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
-  padding: 0 1.25rem;
-  font-weight: 500;
-  cursor: pointer;
-}
-.sendButton:active:not(:disabled) {
-  transform: scale(0.95);
-}
-.sendButton:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-.messageContent {
-  display: flex;
-  gap: 0.5rem;
-  align-items: flex-start;
-}
-.messageFaviconInner {
-  width: 16px;
-  height: 16px;
-  object-fit: contain;
-  flex-shrink: 0;
-  border-radius: 50%;
-  margin-top: 4px;
-}
-.userFaviconInner {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.08);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 4px;
-  color: #555;
-}
-.userFaviconInner svg {
-  width: 10px;
-  height: 10px;
-}
-
-/* ─── Bot icon wrapper (message row) ────────────────────────────────────────── */
-
-.botIconWrapper {
-  position: relative;
-  width: 28px;
-  height: 28px;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.summerFaviconMini {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 10px;
-  height: 10px;
-  object-fit: contain;
-  z-index: 1;
-  border-radius: 2px;
-  pointer-events: none;
-}
-
-/* ─── Message bubble variants ──────────────────────────────────────────────── */
-
-.messageRowUser {
-  flex-direction: row-reverse;
-}
-
-.botBubble {
-  background: rgba(230, 245, 255, 0.30);
-  border-color: rgba(0, 120, 210, 0.14);
-}
-
-.userBubble {
-  background: rgba(255, 255, 255, 0.35);
-}
-
-/* ─── Typing indicator ──────────────────────────────────────────────────────── */
-
-.typingIndicator {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  padding: 2px 0;
-}
-
-.typingIndicator span {
-  display: block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: rgba(0, 120, 220, 0.50);
-  animation: typingDot 1.4s infinite ease-in-out;
-}
-
-.typingIndicator span:nth-child(1) { animation-delay: 0s;   }
-.typingIndicator span:nth-child(2) { animation-delay: 0.2s; }
-.typingIndicator span:nth-child(3) { animation-delay: 0.4s; }
-
-@keyframes typingDot {
-  0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
-  40%           { transform: scale(1.0); opacity: 1.0; }
-}
-
-/* ─── Summer Hero Section (welcome screen) ──────────────────────────────────── */
-
-.bubbleInnerWelcome {
-  justify-content: flex-start !important;
-  align-items: center !important;
-  padding: 0 !important;
-  overflow: hidden !important;
-}
-
-.summerHeroSection {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 1.75rem 1rem 0.875rem;
-  width: 100%;
-}
-
-.summerRingWrapper {
-  position: relative;
-  width: 160px;
-  height: 160px;
-}
-
-.summerFaviconCenter {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 50px;
-  height: 50px;
-  object-fit: contain;
-  z-index: 1;
-  border-radius: 10px;
-  pointer-events: none;
-}
-
-.summerName {
-  margin: 0.875rem 0 0.25rem;
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
-  color: rgba(0, 110, 210, 0.62);
-}
-
-.summerTagline {
-  margin: 0;
-  font-size: 0.78rem;
-  font-weight: 400;
-  color: rgba(0, 0, 0, 0.32);
-  letter-spacing: -0.01em;
-}
-
-.messagesScrollArea {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  width: 100%;
-  padding: 0 1.25rem 1.5rem;
-  box-sizing: border-box;
-}
-
-.messagesScrollArea::-webkit-scrollbar { display: none; }
-

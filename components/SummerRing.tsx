@@ -5,72 +5,55 @@ import { useRef, useEffect } from "react";
 // ── Vertex ────────────────────────────────────────────────────────────────────
 const VERT = "attribute vec2 p;varying vec2 vUv;void main(){vUv=p*0.5+0.5;gl_Position=vec4(p,0.0,1.0);}";
 
-// ── Fragment — audio-warped polar waveform ring ───────────────────────────────
+// ── Fragment — mist ring driven by bass/mid/treble bands ─────────────────────
+// bass  → ring radius pulses (whole ring breathes)
+// treble → mist edge trembles (fine shimmer across the ring)
+// mid   → overall mist density boost
 const FRAG = `
   precision mediump float;
-  uniform float     uTime;
-  uniform float     uActivity;   // 0=idle → 1=audio live
-  uniform sampler2D uFreq;       // 256×1 LUMINANCE, values 0..1
-  varying vec2      vUv;
+  uniform float uTime;
+  uniform float uActivity;  // 0 = idle, 1 = audio live
+  uniform float uBass;      // 0..1 low-frequency energy
+  uniform float uMid;       // 0..1 midrange energy
+  uniform float uTreble;    // 0..1 high-frequency energy
+  varying vec2  vUv;
 
   #define TAU 6.28318530718
-
-  // 5-tap smoothed frequency lookup
-  float sampleFreq(float ta) {
-    float du = 1.0 / 256.0;
-    return texture2D(uFreq, vec2(ta,          0.5)).r * 0.40
-         + texture2D(uFreq, vec2(ta + du,     0.5)).r * 0.20
-         + texture2D(uFreq, vec2(ta - du,     0.5)).r * 0.20
-         + texture2D(uFreq, vec2(ta + du*2.0, 0.5)).r * 0.10
-         + texture2D(uFreq, vec2(ta - du*2.0, 0.5)).r * 0.10;
-  }
 
   void main() {
     vec2  p     = vUv - 0.5;
     float d     = length(p);
     float angle = atan(p.y, p.x);
-    float ta    = angle / TAU + 0.5;          // 0..1 around circle
+    float ta    = angle / TAU + 0.5;
 
-    float freq  = sampleFreq(ta);
+    // ── Idle shimmer — backs off when audio active ────────────────────
+    float shimmer = (sin(uTime * 1.083) * 0.5 + 0.5)
+                  * (sin(uTime * 0.37 + 1.2) * 0.3 + 0.7)
+                  * (1.0 - uActivity * 0.85);
 
-    // ── Warp the ring radius with audio ────────────────────────────
-    float breathe = sin(uTime * 1.1 + ta * 3.0) * 0.010 * (1.0 - uActivity);
-    float warp    = freq * 0.22 * uActivity;   // up to ±22% radius shift
-    float r       = 0.38 + breathe + warp;
+    // ── Bass: whole ring breathes in/out uniformly ────────────────────
+    float r = 0.385 + shimmer * 0.002 + uBass * uActivity * 0.022;
 
-    // ── Draw the deformed ring ──────────────────────────────────────
-    float dist  = abs(d - r);
-    float thick = 0.007 + freq * 0.016 * uActivity;   // thicker at peaks
-    float ring  = smoothstep(thick, 0.0, dist);
+    // ── Treble: fine fast trembling of the ring edge ──────────────────
+    // High-frequency angular ripple, tiny amplitude — feels like shimmer
+    float tremble = sin(ta * TAU * 31.0 + uTime * 9.0) * 0.0028
+                  + sin(ta * TAU * 47.0 - uTime * 13.0) * 0.0018;
+    r += tremble * uTreble * uActivity;
 
-    // Inner fill for large warp peaks (makes it look solid/blobby)
-    float fill  = smoothstep(0.0, r, d) * (1.0 - smoothstep(r, r + 0.001, d))
-                * freq * uActivity * 0.18;
+    // ── Mist band Gaussian ────────────────────────────────────────────
+    float dist  = d - r;
+    float sigma = 0.022 + shimmer * 0.003 + uTreble * uActivity * 0.008;
+    float gauss = exp(-0.5 * dist * dist / (sigma * sigma));
 
-    // ── Glow ────────────────────────────────────────────────────────
-    float glow  = exp(-16.0 * dist) * (0.22 + freq * uActivity * 0.80);
-    float bloom = exp(-4.5  * dist) * freq * uActivity * 0.30;
+    // ── Mist density: mid lifts the overall brightness/opacity ───────
+    float mistBase  = gauss * (0.75 + shimmer * 0.20);
+    float mistAudio = gauss * (0.60 + uMid * 0.40) * uActivity;
+    float mist = mistBase + mistAudio;
 
-    // ── Idle radar sweep (fades out as audio kicks in) ───────────────
-    float sweep = mod(angle - uTime * 0.7, TAU);
-    float scan  = exp(-5.5 * sweep)
-                * smoothstep(0.06, 0.0, dist)
-                * (1.0 - uActivity) * 0.70;
+    // ── Squared alpha kills white-halo at soft edges ──────────────────
+    float alpha = clamp(mist * mist * 1.15, 0.0, 0.90);
 
-    // ── Colour ──────────────────────────────────────────────────────
-    // Shifts from deep blue → electric cyan → near-white at peaks
-    vec3  cBase  = vec3(0.10, 0.45, 1.00);
-    vec3  cPeak  = vec3(0.75, 0.97, 1.00);
-    vec3  cBloom = vec3(0.02, 0.28, 0.90);
-    vec3  cScan  = vec3(0.18, 0.68, 1.00);
-
-    vec3  cRing  = mix(cBase, cPeak, freq * uActivity);
-    vec3  col    = cRing  * (ring + glow * 0.75)
-                 + cBloom * bloom
-                 + fill   * cBase
-                 + cScan  * scan;
-    float alpha  = clamp(ring + glow * 0.85 + bloom * 0.55 + fill + scan * 0.75, 0.0, 1.0);
-
+    vec3 col = vec3(0.10, 0.55, 0.95);
     gl_FragColor = vec4(col, alpha);
   }
 `;
@@ -125,39 +108,38 @@ export default function SummerRing({
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.clearColor(0, 0, 0, 0);
 
-    // 256×1 luminance frequency texture
-    const freqTex  = gl.createTexture()!;
+    // Frequency band analysis — 3 scalar uniforms replace the texture
     const freqData = new Uint8Array(FREQ_BINS);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, freqTex);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, FREQ_BINS, 1, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, freqData);
+    const avg = (lo: number, hi: number) => {
+      let s = 0; for (let i = lo; i < hi; i++) s += freqData[i];
+      return s / ((hi - lo) * 255);
+    };
 
-    const tLoc    = gl.getUniformLocation(prog, "uTime");
-    const actLoc  = gl.getUniformLocation(prog, "uActivity");
-    const freqLoc = gl.getUniformLocation(prog, "uFreq");
-    gl.uniform1i(freqLoc, 0);
+    const tLoc      = gl.getUniformLocation(prog, "uTime");
+    const actLoc    = gl.getUniformLocation(prog, "uActivity");
+    const bassLoc   = gl.getUniformLocation(prog, "uBass");
+    const midLoc    = gl.getUniformLocation(prog, "uMid");
+    const trebleLoc = gl.getUniformLocation(prog, "uTreble");
 
     let raf = 0, activity = 0;
     const tick = (t: number) => {
       activity += ((activeRef.current ? 1 : 0) - activity) * 0.055;
 
       const an = analyserRef.current;
-      if (an) {
-        an.getByteFrequencyData(freqData);
-      } else {
-        freqData.fill(0);
-      }
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, freqTex);
-      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, FREQ_BINS, 1, gl.LUMINANCE, gl.UNSIGNED_BYTE, freqData);
+      if (an) an.getByteFrequencyData(freqData);
+      else    freqData.fill(0);
+
+      // bins at fftSize 512, ~86Hz each: bass 0-8 (0-700Hz), mid 8-60 (700-5kHz), treble 60-150 (5-13kHz)
+      const bass   = avg(1,  9);
+      const mid    = avg(9,  60);
+      const treble = avg(60, 150);
 
       gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.uniform1f(tLoc,   t * 0.001);
-      gl.uniform1f(actLoc, activity);
+      gl.uniform1f(tLoc,      t * 0.001);
+      gl.uniform1f(actLoc,    activity);
+      gl.uniform1f(bassLoc,   bass);
+      gl.uniform1f(midLoc,    mid);
+      gl.uniform1f(trebleLoc, treble);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       raf = requestAnimationFrame(tick);
     };
@@ -165,7 +147,6 @@ export default function SummerRing({
 
     return () => {
       cancelAnimationFrame(raf);
-      gl.deleteTexture(freqTex);
       gl.getExtension("WEBGL_lose_context")?.loseContext();
     };
   }, []);
@@ -175,7 +156,7 @@ export default function SummerRing({
       ref={canvasRef}
       width={size * 2}
       height={size * 2}
-      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", zIndex: 0 }}
+      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", zIndex: 1 }}
     />
   );
 }

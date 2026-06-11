@@ -282,14 +282,12 @@ export async function createAnonSession(anonId: string, ua: string, userId?: str
 
     const sessionSetPromise = sessionRef.set({
       anonId,
-      ip,
-      ua,
-      device,
-      browser,
       userId: userId || null,
-      // Append this visit's ISO timestamp to the seenAt array
-      seenAt: FieldValue.arrayUnion(new Date().toISOString()),
+      // Append a unique timestamp entry on every visit
+      seenAt: FieldValue.arrayUnion(`${new Date().toISOString()}|${Math.random().toString(36).slice(2, 8)}`),
       visits: FieldValue.increment(1),
+      // Only adds a new entry when ip/device/browser combo hasn't been seen before
+      clients: FieldValue.arrayUnion({ ip, device, browser, ua }),
     }, { merge: true });
 
     let userSetPromise: Promise<any> = Promise.resolve();

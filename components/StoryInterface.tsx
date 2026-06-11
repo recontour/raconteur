@@ -2,149 +2,39 @@
 
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import * as THREE from "three";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { signOut } from "firebase/auth";
-import { auth, db } from "@/lib/firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 import { useAuth } from "@/app/helper/auth";
-import { writeRagData } from "@/components/RAGdata";
-import { useAuthFlow, type AuthStep } from "@/hooks/useAuthFlow";
-import { getWelcomeText } from "@/app/actions/user";
-import BookReader from "./BookReader";
-import storyData from "@/data/entireStory.json";
+import { saveUserProfile } from "@/app/actions/user";
+import { collectDeviceSnapshot } from "./SummerHead";
+import { saveSummerCache } from "@/app/actions/summer";
+import {
+  recordVisit,
+  recordPageView,
+  getBootstrapData,
+  getScene,
+  saveAnonPath,
+  generateScene,
+} from "@/app/actions/story";
+import type { DiaryScene, DiaryOption } from "@/lib/types";
 import styles from "./StoryInterface.module.css";
 import SummerRing from "./SummerRing";
 
-// ─── Message type ────────────────────────────────────────────────────────────
+// --- Admin UIDs (comma-separated in NEXT_PUBLIC_ADMIN_UIDS) -------------------
 
-interface ChatMessage {
-  id: string;
-  text: string;
-  timestamp: number;
-  role: "bot" | "user";
-}
+const ADMIN_UIDS = (process.env.NEXT_PUBLIC_ADMIN_UIDS ?? "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 
-// ─── Story meta ───────────────────────────────────────────────────────────────
-
-const STORY_META = {
-  id:       "omelas",
-  title:    "The Ones Who Walk Away from Omelas",
-  author:   "Ursula K. Le Guin",
-  chapters: 12,
-} as const;
-
-// ─── Static scene definitions ─────────────────────────────────────────────────
-
-type SceneId = "welcome" | "entertainment" | "news" | "whatsup" | "story";
-
-interface SceneOption { label: string; next: SceneId; }
-interface SceneDef    { hero: string; subtext?: string; options: SceneOption[]; }
-
-const SCENES: Record<SceneId, SceneDef> = {
-  welcome: {
-    hero: "Welcome to Raconteur",
-    options: [
-      { label: "Entertainment",               next: "entertainment" },
-      { label: "News",                        next: "news"          },
-      { label: "What's Up?",                  next: "whatsup"       },
-      { label: "I want to listen to a story", next: "story"         },
-    ],
-  },
-  entertainment: {
-    hero: "Entertainment",
-    subtext: "More coming soon.",
-    options: [{ label: "← Back", next: "welcome" }],
-  },
-  news: {
-    hero: "News",
-    subtext: "More coming soon.",
-    options: [{ label: "← Back", next: "welcome" }],
-  },
-  whatsup: {
-    hero: "What's Up?",
-    options: [
-      { label: "Tech",   next: "entertainment" },
-      { label: "Sports", next: "entertainment" },
-      { label: "Music",  next: "entertainment" },
-      { label: "Movies", next: "entertainment" },
-      { label: "Travel", next: "entertainment" },
-      { label: "Food",   next: "entertainment" },
-    ],
-  },
-  story: { hero: "", options: [] }, // rendered separately
-};
-
-// ─── Digit input row ──────────────────────────────────────────────────────────
-
-function DigitInputRow({
-  count,
-  value,
-  onChange,
-  autoFocus,
-  cols,
-}: {
-  count: number;
-  value: string;
-  onChange: (v: string) => void;
-  autoFocus?: boolean;
-  cols?: number;
-}) {
-  const refs   = useRef<(HTMLInputElement | null)[]>([]);
-  const digits = Array.from({ length: count }, (_, i) => value[i] ?? "");
-  const isGrid = !!cols;
-
-  const handleChange = (i: number, e: React.ChangeEvent<HTMLInputElement>) => {
-    const ch      = e.target.value.replace(/\D/g, "").slice(-1);
-    const updated = [...digits];
-    updated[i]    = ch;
-    onChange(updated.join(""));
-    if (ch && i < count - 1) refs.current[i + 1]?.focus();
-  };
-
-  const handleKeyDown = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace" && !digits[i] && i > 0) {
-      const updated = [...digits];
-      updated[i - 1] = "";
-      onChange(updated.join(""));
-      refs.current[i - 1]?.focus();
-    }
-  };
-
-  const handleFocus = (el: HTMLInputElement | null) => {
-    el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  };
-
-  return (
-    <div className={isGrid ? styles.digitGrid : styles.digitRow}>
-      {Array.from({ length: count }, (_, i) => (
-        <input
-          key={i}
-          ref={(el) => { refs.current[i] = el; }}
-          type="tel"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          maxLength={1}
-          value={digits[i]}
-          autoFocus={autoFocus && i === 0}
-          onChange={(e) => handleChange(i, e)}
-          onKeyDown={(e) => handleKeyDown(i, e)}
-          onFocus={() => handleFocus(refs.current[i])}
-          className={isGrid ? styles.digitBoxLg : styles.digitBox}
-        />
-      ))}
-    </div>
-  );
-}
-
-// ─── WebGL background ─────────────────────────────────────────────────────────
+// --- WebGL background ---------------------------------------------------------
 
 const BG_FRAG = `
   precision mediump float;
   uniform vec2  uRes;
   uniform float uTime;
 
-  // Hashing & Noise functions
   float h(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
   float n(vec2 p){
     vec2 i=floor(p),f=fract(p),u=f*f*(3.0-2.0*f);
@@ -158,29 +48,16 @@ const BG_FRAG = `
 
   void main(){
     vec2 uv = gl_FragCoord.xy / uRes;
-    
-    // Very slow progression
-    float t = uTime * 0.008;
-    
-    // Soft flowing wave landscape
+    float t = uTime * 0.007;
     vec2 p = uv * 2.5;
-    p.y += t * 2.0; 
-    p.x += t * 1.5;
-    
+    p.y += t * 1.8;
+    p.x += t * 1.2;
     float wave = fbm(p + vec2(fbm(p + t)));
-    
-    // Radial gradient: light gray on the outside, dark gray wave in the middle
     float dist = distance(uv, vec2(0.5, 0.5));
-    
-    // Center dark gray wave color
-    vec3 centerGray = vec3(0.40, 0.40, 0.40) - (wave * 0.15);
-    // Outer light gray
-    vec3 edgeWhite = vec3(0.85, 0.85, 0.85);
-    
-    // Smooth transition from center to edges
-    float mixFactor = smoothstep(0.0, 0.7, dist);
-    vec3 col = mix(centerGray, edgeWhite, mixFactor);
-    
+    vec3 dark  = vec3(0.04, 0.04, 0.10) + wave * 0.06;
+    vec3 edge  = vec3(0.08, 0.08, 0.16);
+    float mix_ = smoothstep(0.0, 0.75, dist);
+    vec3 col = mix(dark, edge, mix_);
     gl_FragColor = vec4(col, 1.0);
   }
 `;
@@ -232,106 +109,71 @@ function setupBg(el: HTMLDivElement): () => void {
   };
 }
 
-// ─── SummerRing is imported from ./SummerRing ────────────────────────────────
-
-// ─── Component ────────────────────────────────────────────────────────────────
+// --- Component ----------------------------------------------------------------
 
 export default function StoryInterface() {
-  const bgRef  = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const router = useRouter();
+  const bgRef        = useRef<HTMLDivElement>(null);
+  const audioRef     = useRef<HTMLAudioElement | null>(null);
+  const analyserRef  = useRef<AnalyserNode | null>(null);
+  const timerRef     = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Refs to avoid stale closures in callbacks
+  const sceneIdRef   = useRef("welcome");
+  const stackRef     = useRef<string[]>([]);
+  const pathRef      = useRef<string[]>(["welcome"]);
+  const sessionIdRef = useRef("");
+  const sceneRef     = useRef<DiaryScene | null>(null);
 
-  const [sceneId,        setSceneId]        = useState<SceneId>("welcome");
-  const [exiting,        setExiting]        = useState(false);
-  const [sceneKey,       setSceneKey]       = useState(0);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [bookSelected,   setBookSelected]   = useState(false);
-  const [messages,       setMessages]       = useState<ChatMessage[]>([]);
-  const [welcomeText,    setWelcomeText]    = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("rc_welcome_v2") || "Welcome.. my name is Summer. How can I help you today?";
-    }
-    return "Welcome.. my name is Summer. How can I help you today?";
-  });
-
+  const router   = useRouter();
   const { user } = useAuth();
-  const authFlow = useAuthFlow(() => { router.push("/book"); });
+  const isAdmin  = !!user && ADMIN_UIDS.includes(user.uid);
 
-  // Animate when auth step advances internally (OTP sent, verified, etc.)
-  const prevAuthStep = useRef<AuthStep>(null);
-  useEffect(() => {
-    const curr = authFlow.authStep;
-    const prev = prevAuthStep.current;
-    if (prev !== null && curr !== null && curr !== prev) {
-      setSceneKey((k) => k + 1);
-    }
-    prevAuthStep.current = curr;
-  }, [authFlow.authStep]);
+  // Scene state
+  const [scene,         setScene]         = useState<DiaryScene | null>(null);
+  const [sceneId,       setSceneId]       = useState("welcome");
+  const [sceneStack,    setSceneStack]    = useState<string[]>([]);
+  const [sceneKey,      setSceneKey]      = useState(0);
+
+  // Audio / typing
+  const [audioUnlocked, setAudioUnlocked] = useState(false);
+  const [ringActive,    setRingActive]    = useState(false);
+  const [typedText,     setTypedText]     = useState("");
+  const [isTyping,      setIsTyping]      = useState(false);
+  const [gridVisible,   setGridVisible]   = useState(false);
+  const [audioBusy,     setAudioBusy]     = useState(false);
+
+  // Admin generate
+  const [generating,    setGenerating]    = useState(false);
+  const [timerMs,       setTimerMs]       = useState(0);
+
+  // Keep refs in sync with state
+  useEffect(() => { sceneIdRef.current = sceneId; }, [sceneId]);
+  useEffect(() => { stackRef.current = sceneStack; }, [sceneStack]);
+  useEffect(() => { sceneRef.current = scene; }, [scene]);
+
+  // ─── Session init ──────────────────────────────────────────────────────────
 
   useEffect(() => {
-    // Generate an anon session ID if not exists, persist in localStorage so it
-    // survives tab/browser closes and works across reloads on the same device.
     let id = localStorage.getItem("rc_anon_session_id");
     if (!id) {
       id = "session_" + Math.random().toString(36).substr(2, 9);
       localStorage.setItem("rc_anon_session_id", id);
-      // New visitor — increment the global unique-visitor counter
-      import("@/app/actions/story").then(({ recordVisit }) => recordVisit(id!)).catch(() => {});
+      recordVisit(id).catch(() => {});
     } else {
-      // Return visitor — append this visit timestamp to seenAt array
-      import("@/app/actions/story").then(({ recordPageView }) => recordPageView(id!)).catch(() => {});
+      recordPageView(id).catch(() => {});
     }
+    sessionIdRef.current = id;
+    collectDeviceSnapshot(id, null, "page_load")
+      .then((p) => saveSummerCache(p))
+      .catch(() => {});
   }, []);
 
-  const saveMessageToAnonSession = async (text: string) => {
-    const id = localStorage.getItem("rc_anon_session_id");
-    if (!id) return;
-    try {
-      const { saveAnonMessage } = await import("@/app/actions/story");
-      await saveAnonMessage(id, text);
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  // ─── Visual Viewport (virtual keyboard fix) ────────────────────────────────
 
-  // Save message to Firebase sessions collection
-  const saveMessageToFirebase = useCallback(async (text: string) => {
-    if (!user?.uid) {
-      saveMessageToAnonSession(text);
-      return;
-    }
-    try {
-      await addDoc(collection(db, `sessions/${user.uid}/messages`), {
-        text,
-        timestamp: serverTimestamp(),
-        sceneId,
-      });
-    } catch (error) {
-      console.error("Error saving message:", error);
-    }
-  }, [user?.uid, sceneId]);
-
-  useEffect(() => {
-    getWelcomeText().then((text) => {
-      setWelcomeText(text);
-      localStorage.setItem("rc_welcome_v2", text);
-    }).catch(() => { /* non-fatal */ });
-  }, []);
-
-  useEffect(() => {
-    if (!bgRef.current) return;
-    return setupBg(bgRef.current);
-  }, []);
-
-  // Shrink root height with virtual keyboard so inputs stay visible
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
     const sync = () => {
-      document.documentElement.style.setProperty(
-        "--vp-h",
-        `${Math.round(vv.height)}px`,
-      );
+      document.documentElement.style.setProperty("--vp-h", `${Math.round(vv.height)}px`);
     };
     sync();
     vv.addEventListener("resize", sync);
@@ -342,603 +184,400 @@ export default function StoryInterface() {
     };
   }, []);
 
-  // Scroll to bottom when messages update
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  // Reset options on every scene transition
-  useEffect(() => {
-    setUserMenuOpen(false);
-    // Clear messages when transitioning between scenes
-    setMessages([]);
-    // Reset scroll position to ensure new scenes start at the top and clear keyboard offsets
-    window.scrollTo(0, 0);
-  }, [sceneKey]);
-
-  const [inputVal, setInputVal] = useState("");
-  const [isAiLoading, setIsAiLoading] = useState(false);
-  const [isChatActive, setIsChatActive] = useState(false);
-  const [fontSize, setFontSize] = useState("0.95rem");
+  // ─── WebGL background ──────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("rc_font_size");
-      if (saved) {
-        setFontSize(saved);
+    if (!bgRef.current) return;
+    return setupBg(bgRef.current);
+  }, []);
+
+  // ─── Bootstrap: load welcome scene from diary ──────────────────────────────
+
+  const typeTextRef = useRef<(text: string, durationMs: number) => void>(() => {});
+
+  useEffect(() => {
+    getBootstrapData()
+      .then(({ welcomeScene, diaryVersion }) => {
+        setScene(welcomeScene);
+        sceneRef.current = welcomeScene;
+        // Invalidate localStorage path cache if diary version changed
+        const stored = localStorage.getItem("rc_diary_version");
+        if (stored !== String(diaryVersion)) {
+          localStorage.setItem("rc_diary_version", String(diaryVersion));
+          localStorage.removeItem("rc_path_history");
+          pathRef.current = ["welcome"];
+        } else {
+          const saved = localStorage.getItem("rc_path_history");
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved) as string[];
+              if (parsed.length > 0) pathRef.current = parsed;
+            } catch { /* ignore */ }
+          }
+        }
+        // Scene loaded — ring button is now active, waiting for click
+        audioDoneRef.current = true; // so grid shows after first type if no audio
+      })
+      .catch(console.error);
+  }, []);
+
+  // ─── Cleanup generate timer on unmount ─────────────────────────────────────
+
+  useEffect(() => {
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, []);
+
+  // ─── Typewriter engine ─────────────────────────────────────────────────────
+
+  const typeText = useCallback((text: string, durationMs: number) => {
+    setTypedText("");
+    setIsTyping(true);
+    setGridVisible(false);
+
+    let i = 0;
+    const msPerChar = Math.max(18, durationMs / text.length);
+    const interval  = setInterval(() => {
+      i += 1;
+      setTypedText(text.slice(0, i));
+      if (i >= text.length) {
+        clearInterval(interval);
+        setIsTyping(false);
       }
+    }, msPerChar);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Keep typeTextRef in sync so bootstrap effect can call it after mount
+  useEffect(() => { typeTextRef.current = typeText; }, [typeText]);
+
+  // Show grid when both typing and audio are done
+  const audioDoneRef  = useRef(false);
+  const typingDoneRef = useRef(false);
+
+  useEffect(() => {
+    if (!isTyping) {
+      typingDoneRef.current = true;
+      if (audioDoneRef.current) setGridVisible(true);
     }
-  }, []);
+  }, [isTyping]);
 
-  const handleFontSelect = (size: string) => {
-    setFontSize(size);
-    localStorage.setItem("rc_font_size", size);
-  };
+  // ─── Core audio + ring + typewriter engine ────────────────────────────────
+  // Used on first load AND on ring tap. Safe to call multiple times — ignores
+  // if audio is already playing.
 
-  // ── Navigation ────────────────────────────────────────────────────────────
+  const playAudioWithType = useCallback((text: string, src: string) => {
+    if (audioRef.current) return; // already playing
 
-  const transition = useCallback((action: () => void) => {
-    setExiting(true);
-    setTimeout(() => {
-      action();
-      setSceneKey((k) => k + 1);
-      setExiting(false);
-    }, 280);
-  }, []);
+    setRingActive(true);
+    audioDoneRef.current  = false;
+    typingDoneRef.current = false;
 
-  const addMessage = useCallback((text: string, role: "bot" | "user" = "bot") => {
-    const newMessage: ChatMessage = {
-      id: `${Date.now()}-${Math.random()}`,
-      text,
-      timestamp: Date.now(),
-      role,
+    const audio = new Audio(src);
+    audioRef.current = audio;
+
+    // Wire analyser for ring visualisation
+    const wireAnalyser = async () => {
+      try {
+        const ac  = new AudioContext();
+        await ac.resume();
+        const source = ac.createMediaElementSource(audio);
+        const an     = ac.createAnalyser();
+        an.fftSize   = 512;
+        source.connect(an);
+        an.connect(ac.destination);
+        analyserRef.current = an;
+      } catch { /* ignore — ring animates without data */ }
     };
-    setMessages((prev) => [...prev, newMessage]);
-    saveMessageToFirebase(text);
-  }, [saveMessageToFirebase]);
 
-  const navigate = useCallback(
-    (next: SceneId) => {
-      const scene = SCENES[next];
-      if (scene && scene.hero) {
-        addMessage(scene.hero);
-      }
-      transition(() => setSceneId(next));
-    },
-    [transition, addMessage],
-  );
+    wireAnalyser();
 
-  // Add first message on scene load
-  useEffect(() => {
-    const scene = SCENES[sceneId];
-    if (messages.length === 0 && scene && scene.hero) {
-      const heroText = scene.hero === "Welcome to Raconteur" ? welcomeText : scene.hero;
-      addMessage(heroText);
+    audio.onloadedmetadata = () => {
+      const durMs = audio.duration * 1000 || 8000;
+      typeTextRef.current(text, durMs);
+    };
+
+    const onDone = () => {
+      setRingActive(false);
+      audioDoneRef.current = true;
+      if (typingDoneRef.current) setGridVisible(true);
+      audioRef.current = null;
+    };
+
+    audio.onended  = onDone;
+    audio.onerror  = () => {
+      // Audio failed — type with fixed duration, grid shows after
+      typeTextRef.current(text, 7000);
+      onDone();
+    };
+
+    audio.play().catch(() => {
+      // Autoplay blocked — type anyway, ring stays quiet
+      typeTextRef.current(text, 7000);
+      onDone();
+    });
+  }, []);
+
+  // ─── Ring click — replay/unlock audio ─────────────────────────────────────
+
+  const handleRingClick = useCallback(async () => {
+    if (audioBusy || !sceneRef.current) return;
+    if (audioUnlocked) return; // only plays once — ring becomes inert after
+    setAudioBusy(true);
+    // Unlock AudioContext on first user gesture (required by browsers)
+    try { await new AudioContext().resume(); } catch { /* ignore */ }
+    setAudioUnlocked(true);
+
+    const WELCOME = "Welcome. My name is Summer. How can I help you today?";
+    playAudioWithType(WELCOME, "/audio/Summer001.mp3");
+
+    setAudioBusy(false);
+  }, [audioBusy, audioUnlocked, playAudioWithType]);
+
+  // ─── Navigate to a scene ───────────────────────────────────────────────────
+
+  const navigateToScene = useCallback(async (targetSceneId: string) => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
     }
-  }, [sceneId, messages.length, welcomeText, addMessage]);
+    setRingActive(false);
+    setGridVisible(false);
+    setIsTyping(false);
+    audioDoneRef.current  = true;
+    typingDoneRef.current = false;
 
-  const exitAuth = useCallback(() => {
-    transition(() => { authFlow.setAuthStep(null); });
-  }, [transition, authFlow]);
+    // Push current scene onto back stack
+    const newStack = [...stackRef.current, sceneIdRef.current];
+    setSceneStack(newStack);
+    stackRef.current = newStack;
 
-  const handleSendAiMessage = async () => {
-    if (!inputVal.trim() || isAiLoading) return;
-    const userMsg = inputVal;
-    setInputVal("");
-    addMessage(userMsg, "user");
-    
-    setIsAiLoading(true);
+    setSceneId(targetSceneId);
+    sceneIdRef.current = targetSceneId;
+    setSceneKey((k) => k + 1);
+
     try {
-      const { generateStoryResponse } = await import("@/app/actions/story");
-      const result = await generateStoryResponse(userMsg);
-      if (result.success && result.text) {
-        addMessage(result.text, "bot");
-      } else {
-        addMessage("I'm sorry, I'm having a bit of trouble processing that right now.", "bot");
-      }
-    } catch (e) {
-      console.error(e);
-      addMessage("It seems my story engine hit a snag. Let's try again?", "bot");
-    } finally {
-      setIsAiLoading(false);
+      const nextScene = await getScene(targetSceneId);
+      setScene(nextScene);
+      sceneRef.current = nextScene;
+      typeText(nextScene.heroMessage, 600);
+
+      const newPath = [...pathRef.current, targetSceneId];
+      pathRef.current = newPath;
+      localStorage.setItem("rc_path_history", JSON.stringify(newPath));
+      const sid = sessionIdRef.current;
+      if (sid) saveAnonPath(sid, newPath).catch(() => {});
+    } catch {
+      typeText("Coming soon. Check back later.", 600);
     }
-  };
+  }, [typeText]);
 
-  const handleBookSelect = useCallback(() => {
-    router.push("/book");
-  }, [router]);
+  // ─── Back navigation ───────────────────────────────────────────────────────
 
-  const handleCloseReader = useCallback(() => {
-    setBookSelected(false);
+  const navigateBack = useCallback(async () => {
+    const stack = stackRef.current;
+    if (stack.length === 0) return;
+
+    const prev     = stack[stack.length - 1];
+    const newStack = stack.slice(0, -1);
+    setSceneStack(newStack);
+    stackRef.current = newStack;
+
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    setRingActive(false);
+    setGridVisible(false);
+    setIsTyping(false);
+    audioDoneRef.current  = true;
+    typingDoneRef.current = false;
+
+    setSceneId(prev);
+    sceneIdRef.current = prev;
+    setSceneKey((k) => k + 1);
+
+    try {
+      const prevScene = await getScene(prev);
+      setScene(prevScene);
+      sceneRef.current = prevScene;
+      typeText(prevScene.heroMessage, 600);
+
+      const newPath = pathRef.current.slice(0, -1);
+      pathRef.current = newPath;
+      localStorage.setItem("rc_path_history", JSON.stringify(newPath));
+      const sid = sessionIdRef.current;
+      if (sid) saveAnonPath(sid, newPath).catch(() => {});
+    } catch {
+      typeText("", 300);
+    }
+  }, [typeText]);
+
+  // ─── Google login ──────────────────────────────────────────────────────────
+
+  const handleLogin = useCallback(async () => {
+    try {
+      const result = await signInWithPopup(auth, new GoogleAuthProvider());
+      const u = result.user;
+      await saveUserProfile(u.uid, {
+        displayName: u.displayName,
+        photoURL:    u.photoURL,
+        email:       u.email,
+      });
+    } catch (err) {
+      console.error("Google login failed:", err);
+    }
   }, []);
 
-  // ── User pill ─────────────────────────────────────────────────────────────
+  // ─── Admin: Generate for me ────────────────────────────────────────────────
 
-  const renderUserPill = () => {
-    if (!user) {
-      return null;
+  const handleGenerate = useCallback(async () => {
+    if (!user || !isAdmin || generating) return;
+    setGenerating(true);
+    setTimerMs(0);
+
+    const start = Date.now();
+    timerRef.current = setInterval(() => setTimerMs(Date.now() - start), 100);
+
+    const sid = sceneIdRef.current;
+    console.log(`[Summer] Calling Gemini for "${sid}"... ${new Date().toISOString()}`);
+
+    const ragContext = JSON.stringify({
+      scene: sid,
+      heroMessage: sceneRef.current?.heroMessage,
+      options: sceneRef.current?.options,
+      path: pathRef.current,
+    });
+
+    try {
+      const result = await generateScene(sid, ragContext, user.uid);
+      const elapsed = Date.now() - start;
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      setTimerMs(elapsed);
+
+      console.log(`[Summer] Response in ${elapsed}ms | progressId: ${result.progressId}`, result);
+
+      if (result.success && result.scene) {
+        setScene(result.scene);
+        sceneRef.current = result.scene;
+        typeText(result.scene.heroMessage, 600);
+        if (result.ps) console.log(`[Summer P.S.]: ${result.ps}`);
+      } else {
+        console.error(`[Summer] Generate failed:`, result.error);
+      }
+    } catch (err) {
+      const elapsed = Date.now() - start;
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      setTimerMs(elapsed);
+      console.error(`[Summer] Exception after ${elapsed}ms:`, err);
+    } finally {
+      setGenerating(false);
     }
-    
-    const rawFirst = user.displayName?.split(" ")[0] ?? user.email?.split("@")[0] ?? "there";
-    const firstName = rawFirst.charAt(0).toUpperCase() + rawFirst.slice(1);
-    const initials  = user.displayName
-      ? user.displayName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()
-      : firstName[0]?.toUpperCase() ?? "U";
-    return (
-      <>
-        <button
-          className={`${styles.userPill} ${userMenuOpen ? styles.userPillOpen : ""}`}
-          onClick={() => setUserMenuOpen((o) => !o)}
-          aria-expanded={userMenuOpen}
-        >
-          <div className={styles.userPillAvatar}>
-            {user.photoURL ? (
-              <Image
-                src={user.photoURL}
-                alt={firstName}
-                width={28}
-                height={28}
-                style={{ objectFit: "cover", borderRadius: "50%", display: "block" }}
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              initials
-            )}
-          </div>
-          <span className={styles.userPillName}>Hi {firstName}</span>
-        </button>
-        {userMenuOpen && (
-          <div
-            className={styles.optSingle}
-            style={{ "--delay": "40ms" } as React.CSSProperties}
-          >
-            <button
-              className={`${styles.optBoxWide} ${styles.optBoxGhost}`}
-              onClick={() => { signOut(auth); setUserMenuOpen(false); }}
-            >
-              <span className={styles.optLabel}>Sign out</span>
-            </button>
-          </div>
-        )}
-      </>
-    );
-  };
+  }, [user, isAdmin, generating, typeText]);
 
-  // ── Scene renderers ───────────────────────────────────────────────────────
+  // ─── Render an option button ───────────────────────────────────────────────
 
-  const renderMessageIcon = (role: "bot" | "user") => {
-    if (role === "bot") {
-      return (
-        <div className={styles.botIconWrapper}>
-          <SummerRing active={isAiLoading} size={28} />
-          <img src="/favicon.ico" alt="Summer" className={styles.summerFaviconMini} />
-        </div>
-      );
-    }
-    if (user?.photoURL) {
-      return (
-        <img
-          src={user.photoURL}
-          alt={user.displayName || "User"}
-          className={styles.messageFaviconInner}
-          style={{ objectFit: "cover" }}
-          referrerPolicy="no-referrer"
-        />
-      );
-    }
-    return (
-      <div className={styles.userFaviconInner}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-          <circle cx="12" cy="7" r="4" />
-        </svg>
-      </div>
-    );
-  };
+  const renderOption = useCallback((opt: DiaryOption, i: number) => {
+    const delay = { "--delay": `${i * 45}ms` } as React.CSSProperties;
 
-  const renderStaticScene = (def: SceneDef) => {
-    const isSingle = def.options.length === 1;
-    const heroText = def.hero === "Welcome to Raconteur" ? welcomeText : def.hero;
-
-    return (
-      <>
-        <div className={styles.heroBubble}>
-          <div className={`${styles.bubbleInner} ${sceneId === "welcome" ? styles.bubbleInnerWelcome : ""}`}>
-            {sceneId === "welcome" && (
-              <div className={styles.summerHeroSection}>
-                <div className={styles.summerRingWrapper}>
-                  <SummerRing active={true} size={160} />
-                  <img src="/favicon.ico" alt="Summer" className={styles.summerFaviconCenter} />
-                </div>
-                <p className={styles.summerName}>SUMMER</p>
-                <p className={styles.summerTagline}>Your AI storytelling companion</p>
-              </div>
-            )}
-            <div className={`${styles.messagesContainer} ${sceneId === "welcome" ? styles.messagesScrollArea : ""}`}>
-              {messages.map((msg) => (
-                <div key={msg.id} className={`${styles.messageRow} ${msg.role === "user" ? styles.messageRowUser : ""}`}>
-                  <div className={`${styles.messageBubble} ${msg.role === "user" ? styles.userBubble : styles.botBubble}`}>
-                    <div className={styles.messageContent}>
-                      {renderMessageIcon(msg.role)}
-                      <p className={styles.messageText} style={{ fontSize: fontSize }}>{msg.text}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {isAiLoading && (
-                <div className={styles.messageRow}>
-                  <div className={`${styles.messageBubble} ${styles.botBubble}`}>
-                    <div className={styles.messageContent}>
-                      {renderMessageIcon("bot")}
-                      <div className={styles.typingIndicator} style={{ alignSelf: 'center' }}>
-                        <span></span><span></span><span></span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-          </div>
-        </div>
-
-          {isChatActive && (
-            <div className={styles.chatInputContainer}>
-                <input 
-                  type="text" 
-                  className={styles.chatInput} 
-                  placeholder="Type your message..."
-                  value={inputVal}
-                  onChange={(e) => setInputVal(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSendAiMessage()}
-                  disabled={isAiLoading}
-                />
-                <button 
-                  className={styles.sendButton} 
-                  onClick={handleSendAiMessage}
-                  disabled={isAiLoading || !inputVal.trim()}
-                >
-                  Send
-                </button>
-            </div>
-          )}
-
-          <div className={styles.optionsBubble}>
-            {isSingle ? (
-              <button
-                className={styles.optBoxWide}
-                onClick={() => navigate(def.options[0].next)}
-                disabled={exiting}
-              >
-                <span className={styles.optLabel}>{def.options[0].label}</span>
-              </button>
-            ) : (
-              <div className={styles.optGrid2}>
-                {def.options.map((opt, i) => (
-                  <button
-                    key={opt.label}
-                    className={styles.optBox}
-                    style={{ "--delay": `${i * 50 + 50}ms` } as React.CSSProperties}
-                    onClick={() => navigate(opt.next)}
-                    disabled={exiting}
-                  >
-                    <span className={styles.optLabel}>{opt.label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-              <p className={styles.subText} style={{ textAlign: "center", marginTop: 0, marginBottom: "0.5rem" }}>Text Size</p>
-              <div className={styles.optGrid2} style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
-                {[
-                  { label: "Aa", size: "0.80rem" },
-                  { label: "Aa", size: "0.95rem" },
-                  { label: "Aa", size: "1.10rem" },
-                  { label: "Aa", size: "1.25rem" }
-                ].map((opt, i) => (
-                  <button
-                    key={i}
-                    className={styles.optBox}
-                    style={{ 
-                      padding: "0.5rem", 
-                      fontSize: opt.size,
-                      background: fontSize === opt.size ? 'rgba(255,255,255,0.1)' : 'transparent',
-                      opacity: fontSize === opt.size ? 1 : 0.6
-                    }}
-                    onClick={() => handleFontSelect(opt.size)}
-                  >
-                    <span className={styles.optLabel}>{opt.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </>
-      );
-    };
-
-  const renderStoryScene = () => (
-    <>
-      <div className={styles.heroBubble}>
-        <div className={styles.bubbleInner}>
-          <p className={styles.heroText}>Choose your story</p>
-          <button
-            className={styles.bookItem}
-            onClick={handleBookSelect}
-            disabled={exiting}
-            style={{ "--delay": "50ms", marginTop: "1.25rem" } as React.CSSProperties}
-          >
-            <span className={styles.bookTitle}>{STORY_META.title}</span>
-            <span className={styles.bookMeta}>
-              {STORY_META.author} · {STORY_META.chapters} chapters
-            </span>
+    switch (opt.type) {
+      case "navigate":
+        return (
+          <button key={i} className={styles.optBox} style={delay}
+            onClick={() => navigateToScene(opt.nextScene!)}>
+            {opt.label}
           </button>
-          <p className={styles.subText} style={{ marginTop: "2rem", opacity: 0.55 }}>
-            More stories coming soon
-          </p>
-        </div>
-      </div>
+        );
 
-      <div className={styles.optionsBubble}>
-        <button
-          className={`${styles.optBoxWide} ${styles.optBoxGhost}`}
-          onClick={() => navigate("welcome")}
-          disabled={exiting}
-          style={{ "--delay": "120ms" } as React.CSSProperties}
-        >
-          <span className={styles.optLabel}>← Back</span>
-        </button>
-      </div>
-    </>
-  );
-
-  const renderBookReaderScene = () => {
-    // Adapt entireStory paragraphs to BookReader Story format
-    const stories = storyData.paragraphs.map((p) => ({
-      id: p.id,
-      slug: p.slug,
-      title: p.title,
-      paragraph: p.text,
-      mood: p.mood,
-      audioFile: p.audio,
-      duration: p.duration ?? 0,
-      subtitles: [] as Array<{ time: number; text: string }>,
-    }));
-
-    return (
-      <>
-        <div className={styles.bookReaderContainer}>
-          <BookReader stories={stories} />
-        </div>
-
-        <div className={styles.optionsBubble}>
-          <button
-            className={`${styles.optBoxWide} ${styles.optBoxGhost}`}
-            onClick={handleCloseReader}
-            style={{ "--delay": "50ms" } as React.CSSProperties}
-          >
-            <span className={styles.optLabel}>← Back to Stories</span>
+      case "redirect":
+        return (
+          <button key={i} className={styles.optBox} style={delay}
+            onClick={() => router.push(opt.href!)}>
+            {opt.label}
           </button>
-        </div>
-      </>
-    );
-  };
+        );
 
-  const renderAuth = (step: AuthStep) => {
-    if (step === "entering") {
-      return (
-        <>
-          <div className={styles.heroBubble}>
-            <div className={styles.bubbleInner}>
-              <p className={styles.heroText}>Welcome!</p>
-              <p className={styles.subText}>Taking you to your story…</p>
-            </div>
-          </div>
-          <div className={styles.optionsBubble} />
-        </>
-      );
-    }
+      case "login":
+        if (user) return <div key={i} aria-hidden="true" />;
+        return (
+          <button key={i} className={styles.optBox} style={delay} onClick={handleLogin}>
+            {opt.label}
+          </button>
+        );
 
-    if (step === "phone-entry") {
-      return (
-        <>
-          <div className={styles.heroBubble}>
-            <div className={styles.bubbleInner}>
-              <p className={styles.heroText}>What's your number?</p>
-              <p className={styles.subText}>We'll send a one-time code via SMS</p>
-              <DigitInputRow
-                count={10}
-                cols={5}
-                value={authFlow.phoneInput}
-                onChange={authFlow.setPhoneInput}
-                autoFocus
-              />
-              {authFlow.authError && (
-                <p className={styles.authError}>{authFlow.authError}</p>
-              )}
-            </div>
-          </div>
-          <div className={styles.optionsBubble}>
-            <button
-              className={styles.optBoxWide}
-              onClick={() => transition(authFlow.handleSendOTP)}
-              disabled={authFlow.phoneInput.length !== 10 || authFlow.authBusy}
-            >
-              <span className={styles.optLabel}>
-                {authFlow.authBusy ? "Sending…" : "Send OTP"}
-              </span>
+      case "back":
+        return (
+          <button key={i} className={`${styles.optBox} ${styles.optBoxBack}`} style={delay}
+            onClick={navigateBack}>
+            {opt.label}
+          </button>
+        );
+
+      case "coming_soon":
+        if (isAdmin) {
+          return (
+            <button key={i} className={`${styles.optBox} ${styles.optBoxAdmin}`} style={delay}
+              onClick={handleGenerate} disabled={generating}>
+              {generating ? `${(timerMs / 1000).toFixed(1)}s\u2026` : "Generate \u2736"}
             </button>
-            <button
-              className={`${styles.optBoxWide} ${styles.optBoxGhost}`}
-              onClick={exitAuth}
-              disabled={authFlow.authBusy}
-            >
-              <span className={styles.optLabel}>← Back</span>
-            </button>
-          </div>
-        </>
-      );
+          );
+        }
+        return (
+          <button key={i} className={styles.optBox} style={delay} disabled>
+            {opt.label}
+          </button>
+        );
+
+      default:
+        return <div key={i} aria-hidden="true" />;
     }
+  }, [user, isAdmin, generating, timerMs, navigateToScene, navigateBack, handleLogin, handleGenerate, router]);
 
-    if (step === "phone-otp") {
-      return (
-        <>
-          <div className={styles.heroBubble}>
-            <div className={styles.bubbleInner}>
-              <p className={styles.heroText}>Enter the code</p>
-              <p className={styles.subText}>Sent to {authFlow.phoneInput}</p>
-              <DigitInputRow
-                count={6}
-                value={authFlow.otpInput}
-                onChange={authFlow.setOtpInput}
-                autoFocus
-              />
-              {authFlow.authError && (
-                <p className={styles.authError}>{authFlow.authError}</p>
-              )}
-            </div>
-          </div>
-          <div className={styles.optionsBubble}>
-            <button
-              className={styles.optBoxWide}
-              onClick={() => transition(authFlow.handleVerifyOTP)}
-              disabled={authFlow.otpInput.length !== 6 || authFlow.authBusy}
-            >
-              <span className={styles.optLabel}>
-                {authFlow.authBusy ? "Verifying…" : "Verify"}
-              </span>
-            </button>
-            <button
-              className={`${styles.optBoxWide} ${styles.optBoxGhost}`}
-              onClick={() => transition(() => authFlow.setAuthStep("phone-entry"))}
-              disabled={authFlow.authBusy}
-            >
-              <span className={styles.optLabel}>← Back</span>
-            </button>
-          </div>
-        </>
-      );
-    }
-
-    if (step === "profile-name") {
-      return (
-        <>
-          <div className={styles.heroBubble}>
-            <div className={styles.bubbleInner}>
-              <p className={styles.heroText}>What should we call you?</p>
-              <input
-                type="text"
-                className={styles.authInput}
-                placeholder="Your name"
-                value={authFlow.nameInput}
-                onChange={(e) => authFlow.setNameInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") transition(authFlow.handleSaveName);
-                }}
-                autoFocus
-              />
-              {authFlow.authError && (
-                <p className={styles.authError}>{authFlow.authError}</p>
-              )}
-            </div>
-          </div>
-          <div className={styles.optionsBubble}>
-            <div className={styles.optGrid2}>
-              <button
-                className={`${styles.optBox} ${styles.optBoxGhost}`}
-                style={{ "--delay": "50ms" } as React.CSSProperties}
-                onClick={exitAuth}
-                disabled={authFlow.authBusy}
-              >
-                <span className={styles.optLabel}>← Back</span>
-              </button>
-              <button
-                className={styles.optBox}
-                style={{ "--delay": "100ms" } as React.CSSProperties}
-                onClick={() => transition(authFlow.handleSaveName)}
-                disabled={authFlow.nameInput.trim().length < 2 || authFlow.authBusy}
-              >
-                <span className={styles.optLabel}>
-                  {authFlow.authBusy ? "Saving…" : "Register"}
-                </span>
-              </button>
-            </div>
-          </div>
-        </>
-      );
-    }
-
-    if (step === "link-google") {
-      return (
-        <>
-          <div className={styles.heroBubble}>
-            <div className={styles.bubbleInner}>
-              <p className={styles.heroText}>Add Google?</p>
-              <p className={styles.subText}>
-                Link your Google account to sign in from any device and keep your
-                progress safe.
-              </p>
-              {authFlow.authError && (
-                <p className={styles.authError}>{authFlow.authError}</p>
-              )}
-            </div>
-          </div>
-          <div className={styles.optionsBubble}>
-            <div className={styles.optGrid2}>
-              <button
-                className={`${styles.optBox} ${styles.optBoxGhost}`}
-                style={{ "--delay": "50ms" } as React.CSSProperties}
-                onClick={exitAuth}
-                disabled={authFlow.authBusy}
-              >
-                <span className={styles.optLabel}>← Back</span>
-              </button>
-              <button
-                className={styles.optBox}
-                style={{ "--delay": "100ms" } as React.CSSProperties}
-                onClick={() => transition(authFlow.handleLinkGoogle)}
-                disabled={authFlow.authBusy}
-              >
-                <span className={styles.optLabel}>
-                  {authFlow.authBusy ? "Opening…" : "Link Google"}
-                </span>
-              </button>
-            </div>
-            <button
-              className={`${styles.optBoxWide} ${styles.optBoxGhost}`}
-              onClick={() => transition(authFlow.finalizeAuth)}
-              disabled={authFlow.authBusy}
-            >
-              <span className={styles.optLabel}>Skip for now</span>
-            </button>
-          </div>
-        </>
-      );
-    }
-
-    return null;
-  };
-
-  const renderContent = () => {
-    if (bookSelected) return renderBookReaderScene();
-    if (sceneId === "story")        return renderStoryScene();
-    return renderStaticScene(SCENES[sceneId]);
-  };
+  // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className={styles.root}>
-      <div ref={bgRef} className={styles.bg} />
-
-      <div
-        key={sceneKey}
-        className={`${styles.scene} ${exiting ? styles.sceneExit : ""}`}
-      >
-        <div className={styles.layout}>
-          {renderUserPill()}
-          {renderContent()}
+      <div className={styles.container}>
+        {/* Ring - tap to start */}
+        <div className={styles.ringSection}>
+          <button
+            className={styles.ringButton}
+            onClick={handleRingClick}
+            disabled={!scene || audioUnlocked}
+            aria-label="Tap to start"
+          >
+            <span style={{ position: "relative", zIndex: 1, display: "block", width: "100%", height: "100%" }}>
+              <SummerRing active={ringActive} size={200} analyser={analyserRef.current} />
+            </span>
+            <span className={styles.ringLogo}>S</span>
+          </button>
         </div>
+
+        {/* Bubble + grid — only shown after ring is tapped */}
+        {!audioUnlocked && (
+          <div className={styles.preHint}>
+            <p className={styles.preHintText}>Best with headphones&nbsp;🎧</p>
+            <p className={styles.preHintCta}>Tap the ring to talk to Summer</p>
+          </div>
+        )}
+        {audioUnlocked && (
+          <>
+            <div key={`bubble-${sceneKey}`} className={`${styles.heroBubble} ${styles.sceneEnter}`}>
+              <p className={styles.heroText}>
+                {typedText}
+                {isTyping && <span className={styles.typeCursor} aria-hidden="true" />}
+              </p>
+            </div>
+
+            {/* Button grid — revealed after typing + audio done */}
+            {gridVisible && scene && (
+              <div key={`grid-${sceneKey}`} className={styles.optGrid}>
+                {scene.options.map((opt, i) => renderOption(opt, i))}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
 }
+

@@ -39,22 +39,11 @@ export default function SessionTracker() {
     }
 
     // Create or update anonymous session
-    let anonId = localStorage.getItem("raconteur_anon");
+    let anonId = localStorage.getItem("rc_anon_session_id");
     if (!anonId) {
       anonId = crypto.randomUUID();
-      localStorage.setItem("raconteur_anon", anonId);
+      localStorage.setItem("rc_anon_session_id", anonId);
     }
-
-    // Parse UA on client for immediate browser storage
-    const ua = navigator.userAgent;
-    const isMobile = /mobile/i.test(ua);
-    const device = isMobile ? (/iPhone|iPad|iPod/.test(ua) ? 'iPhone' : 'Android') : 'Desktop';
-    const browser = /edg/i.test(ua) ? 'Edge' : 
-                    /chrome|crios/i.test(ua) ? 'Chrome' : 
-                    /safari/i.test(ua) ? 'Safari' : 
-                    /firefox/i.test(ua) ? 'Firefox' : 'Other';
-    
-    localStorage.setItem("raconteur_session_info", JSON.stringify({ device, browser }));
 
     // Trigger tracking on load/navigation — wrapped in startTransition to avoid blocking render
     startTransition(() => {

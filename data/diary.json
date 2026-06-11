@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "scenes": [
+    {
+      "id": "welcome",
+      "heroMessage": "Welcome. My name is Summer. How can I help you today?",
+      "options": [
+        { "label": "Entertainment", "type": "navigate", "nextScene": "entertainment" },
+        { "label": "News",          "type": "navigate", "nextScene": "news" },
+        { "label": "What\u2019s Up?", "type": "navigate", "nextScene": "whatsup" },
+        { "label": "I want to listen", "type": "redirect", "href": "/book" },
+        { "label": "Coming soon",   "type": "coming_soon" },
+        { "label": "Login",         "type": "login" }
+      ]
+    },
+    {
+      "id": "entertainment",
+      "heroMessage": "Coming soon. More experiences on the way.",
+      "options": [
+        { "label": "Coming soon", "type": "coming_soon" },
+        { "label": "Coming soon", "type": "coming_soon" },
+        { "label": "Coming soon", "type": "coming_soon" },
+        { "label": "Coming soon", "type": "coming_soon" },
+        { "label": "Coming soon", "type": "coming_soon" },
+        { "label": "\u2190 Back",  "type": "back" }
+      ]
+    },
+    {
+      "id": "news",
+      "heroMessage": "No new stories right now. Check back later.",
+      "options": [
+        { "label": "Coming soon", "type": "coming_soon" },
+        { "label": "Coming soon", "type": "coming_soon" },
+        { "label": "Coming soon", "type": "coming_soon" },
+        { "label": "Coming soon", "type": "coming_soon" },
+        { "label": "Coming soon", "type": "coming_soon" },
+        { "label": "\u2190 Back",  "type": "back" }
+      ]
+    },
+    {
+      "id": "whatsup",
+      "heroMessage": "What are you into?",
+      "options": [
+        { "label": "Tech",   "type": "navigate", "nextScene": "entertainment" },
+        { "label": "Sports", "type": "navigate", "nextScene": "entertainment" },
+        { "label": "Music",  "type": "navigate", "nextScene": "entertainment" },
+        { "label": "Movies", "type": "navigate", "nextScene": "entertainment" },
+        { "label": "Travel", "type": "navigate", "nextScene": "entertainment" },
+        { "label": "\u2190 Back", "type": "back" }
+      ]
+    }
+  ]
+}

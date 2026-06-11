@@ -3,6 +3,8 @@
 import React, { useRef, useEffect, useState } from "react";
 import * as THREE from "three";
 import styles from "./WaterInterface.module.css";
+import { useAuth } from "@/app/helper/auth";
+import { writeRagData } from "@/components/RAGdata";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -159,16 +161,49 @@ export default function WaterInterface() {
   const [msgKey, setMsgKey]       = useState(0);
   const [clickedIdx, setClickedIdx] = useState<number | null>(null);
   const [msgOut, setMsgOut]       = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     if (!bgRef.current) return;
     return setupWaterBg(bgRef.current);
   }, []);
 
+  const logInteractionTelemetry = (actionName: string) => {
+    const anonId = localStorage.getItem("rc_anon_session_id") || "unknown";
+    const targetId = user?.uid || anonId;
+    
+    const nav = window.navigator as any;
+    const conn = nav.connection || nav.mozConnection || nav.webkitConnection;
+    const gl = document.createElement("canvas").getContext("webgl");
+    const ext = gl?.getExtension("WEBGL_debug_renderer_info");
+    
+    const telemetry = {
+      action: actionName,
+      ts: Date.now(),
+      hardware: {
+        cores: nav.hardwareConcurrency || "unknown",
+        ram: nav.deviceMemory || "unknown",
+        gpu: ext ? gl?.getParameter(ext.UNMASKED_RENDERER_WEBGL) : "unknown",
+      },
+      network: {
+        type: conn?.effectiveType || "unknown",
+        downlink: conn?.downlink || "unknown",
+        rtt: conn?.rtt || "unknown",
+      },
+      screen: {
+        res: `${window.screen.width}x${window.screen.height}`,
+        dpr: window.devicePixelRatio,
+      }
+    };
+
+    writeRagData(targetId, "USER_TELEMETRY", telemetry);
+  };
+
   const handleClick = (option: string, idx: number) => {
     if (clickedIdx !== null) return;
     setClickedIdx(idx);
     setMsgOut(true);
+    logInteractionTelemetry(`click_${option}`);
     // After 320ms: animations have played out — swap content in one batch
     setTimeout(() => {
       setStep(nextStep(option));
