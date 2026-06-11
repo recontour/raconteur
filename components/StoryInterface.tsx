@@ -17,6 +17,7 @@ import {
   saveAnonPath,
   generateScene,
 } from "@/app/actions/story";
+import { useAuthFlow } from "@/hooks/useAuthFlow";
 import type { DiaryScene, DiaryOption } from "@/lib/types";
 import styles from "./StoryInterface.module.css";
 import SummerRing from "./SummerRing";
@@ -145,6 +146,13 @@ export default function StoryInterface() {
   const [generating,    setGenerating]    = useState(false);
   const [timerMs,       setTimerMs]       = useState(0);
 
+  // Auth Flow
+  const authFlow = useAuthFlow(() => {
+    if (sceneRef.current) {
+      typeTextRef.current(sceneRef.current.heroMessage, 600);
+    }
+  });
+
   // Keep refs in sync with state
   useEffect(() => { sceneIdRef.current = sceneId; }, [sceneId]);
   useEffect(() => { stackRef.current = sceneStack; }, [sceneStack]);
@@ -249,6 +257,25 @@ export default function StoryInterface() {
 
   // Keep typeTextRef in sync so bootstrap effect can call it after mount
   useEffect(() => { typeTextRef.current = typeText; }, [typeText]);
+
+  // Handle dynamic text for auth flow
+  useEffect(() => {
+    if (!authFlow.authStep) {
+      if (!isTyping && sceneRef.current && typedText !== sceneRef.current.heroMessage) {
+         // Prevent re-typing if not necessary
+         if(sceneRef.current.heroMessage && !audioRef.current) {
+            typeText(sceneRef.current.heroMessage, 600);
+         }
+      }
+      return;
+    }
+    
+    if (authFlow.authStep === "phone-entry") typeText("Please enter your 10-digit number.", 600);
+    else if (authFlow.authStep === "phone-otp") typeText("Enter the 6-digit code sent to your device.", 600);
+    else if (authFlow.authStep === "profile-name") typeText("What should I call you?", 600);
+    else if (authFlow.authStep === "link-google") typeText("Linking your Google account...", 600);
+    else if (authFlow.authStep === "entering") typeText("Welcome back.", 600);
+  }, [authFlow.authStep, typeText]);
 
   // Show grid when both typing and audio are done
   const audioDoneRef  = useRef(false);
@@ -497,11 +524,38 @@ export default function StoryInterface() {
         );
 
       case "login":
-        if (user) return <div key={i} aria-hidden="true" />;
+        if (user) {
+          const hasGoogle = user.providerData.some(p => p.providerId === "google.com");
+          const hasPhone = user.providerData.some(p => p.providerId === "phone");
+
+          if (hasGoogle && hasPhone) return <div key={i} aria-hidden="true" />;
+          
+          if (!hasPhone) {
+            return (
+              <button key={i} className={styles.optBox} style={delay} onClick={() => authFlow.setAuthStep("phone-entry")}>
+                Link Phone
+              </button>
+            );
+          }
+          if (!hasGoogle) {
+            return (
+              <button key={i} className={styles.optBox} style={delay} onClick={authFlow.handleLinkGoogle} disabled={authFlow.authBusy}>
+                Link Google
+              </button>
+            );
+          }
+        }
+        
+        // No user at all
         return (
-          <button key={i} className={styles.optBox} style={delay} onClick={handleLogin}>
-            {opt.label}
-          </button>
+          <React.Fragment key={i}>
+            <button className={styles.optBox} style={delay} onClick={() => authFlow.setAuthStep("phone-entry")}>
+              Phone Auth
+            </button>
+            <button className={styles.optBox} style={delay} onClick={handleLogin}>
+              Google Auth
+            </button>
+          </React.Fragment>
         );
 
       case "back":
@@ -530,7 +584,7 @@ export default function StoryInterface() {
       default:
         return <div key={i} aria-hidden="true" />;
     }
-  }, [user, isAdmin, generating, timerMs, navigateToScene, navigateBack, handleLogin, handleGenerate, router]);
+  }, [user, isAdmin, generating, timerMs, navigateToScene, navigateBack, handleLogin, handleGenerate, router, authFlow]);
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
@@ -568,10 +622,74 @@ export default function StoryInterface() {
               </p>
             </div>
 
-            {/* Button grid — revealed after typing + audio done */}
-            {gridVisible && scene && (
+            {/* Normal Button grid — revealed after typing + audio done + NOT authenticating */}
+            {gridVisible && scene && !authFlow.authStep && (
               <div key={`grid-${sceneKey}`} className={styles.optGrid}>
                 {scene.options.map((opt, i) => renderOption(opt, i))}
+              </div>
+            )}
+
+            {/* Inline Auth UI */}
+            {authFlow.authStep && gridVisible && (
+              <div className={styles.authForm}>
+                {authFlow.authStep === "phone-entry" && (
+                  <>
+                    <input 
+                      type="tel" 
+                      className={styles.authInput} 
+                      placeholder="Phone number"
+                      value={authFlow.phoneInput}
+                      onChange={(e) => authFlow.setPhoneInput(e.target.value.replace(/\D/g, ''))}
+                      disabled={authFlow.authBusy}
+                      autoFocus
+                    />
+                    <button className={styles.optBox} onClick={authFlow.handleSendOTP} disabled={authFlow.authBusy}>
+                      Send Code
+                    </button>
+                    <button className={`${styles.optBox} ${styles.optBoxBack}`} onClick={() => {
+                        authFlow.setAuthStep(null);
+                        if (sceneRef.current) typeText(sceneRef.current.heroMessage, 600);
+                      }}>
+                      Cancel
+                    </button>
+                  </>
+                )}
+                {authFlow.authStep === "phone-otp" && (
+                  <>
+                    <input 
+                      type="text" 
+                      className={styles.authInput} 
+                      placeholder="6-digit code"
+                      value={authFlow.otpInput}
+                      onChange={(e) => authFlow.setOtpInput(e.target.value.replace(/\D/g, ''))}
+                      disabled={authFlow.authBusy}
+                      autoFocus
+                    />
+                    <button className={styles.optBox} onClick={authFlow.handleVerifyOTP} disabled={authFlow.authBusy}>
+                      Verify
+                    </button>
+                    <button className={`${styles.optBox} ${styles.optBoxBack}`} onClick={() => authFlow.setAuthStep("phone-entry")}>
+                      Back
+                    </button>
+                  </>
+                )}
+                {authFlow.authStep === "profile-name" && (
+                  <>
+                    <input 
+                      type="text" 
+                      className={styles.authInput} 
+                      placeholder="First Last"
+                      value={authFlow.nameInput}
+                      onChange={(e) => authFlow.setNameInput(e.target.value)}
+                      disabled={authFlow.authBusy}
+                      autoFocus
+                    />
+                    <button className={styles.optBox} onClick={authFlow.handleSaveName} disabled={authFlow.authBusy}>
+                      Continue
+                    </button>
+                  </>
+                )}
+                {authFlow.authError && <p className={styles.authError}>{authFlow.authError}</p>}
               </div>
             )}
           </>
@@ -580,4 +698,5 @@ export default function StoryInterface() {
     </div>
   );
 }
+
 

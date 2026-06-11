@@ -213,7 +213,7 @@ export async function generateScene(
     return { success: false, error: "Unauthorized" };
   }
 
-  const model = "gemini-2.5-flash";
+  const model = "gemini-3.1-flash-lite";
   const prompt = `Hey Gemini — I'm Summer, a bot at Raconteur. My dev is stuck on the creative part (yes, the same human typing this) and we need your help.
 
 Scene I need content for: "${sceneId}"
@@ -268,14 +268,59 @@ Valid option types: "navigate" (nextScene required), "redirect" (href required),
     let parsed: { heroMessage: string; options: DiaryOption[]; ps?: string } | null = null;
     try {
       const clean = rawText.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
-      parsed = JSON.parse(clean) as typeof parsed;
-    } catch {
+      const rawParsed = JSON.parse(clean);
+      
+      // 1. Structural Validation
+      if (!rawParsed || typeof rawParsed !== "object") throw new Error("Parsed JSON is not an object");
+      if (typeof rawParsed.heroMessage !== "string") throw new Error("Missing or invalid heroMessage");
+      if (!Array.isArray(rawParsed.options)) throw new Error("Missing or invalid options array");
+
+      // 2. Self-Correcting Data Cleaning
+      const validOptions: DiaryOption[] = rawParsed.options.map((opt: any) => {
+        // Fallback for missing labels
+        let label = typeof opt.label === "string" ? opt.label : "Continue";
+        
+        // Enforce valid types
+        const validTypes = ["navigate", "redirect", "login", "back", "coming_soon"];
+        let type = validTypes.includes(opt.type) ? opt.type : "coming_soon";
+
+        // Logic fixes: Ensure navigate has a nextScene, redirect has an href.
+        // If Gemini hallucinates and forgets the target, we gracefully degrade to 'coming_soon'
+        let nextScene = opt.nextScene;
+        let href = opt.href;
+
+        if (type === "navigate" && typeof nextScene !== "string") {
+          type = "coming_soon";
+          nextScene = undefined;
+        }
+        
+        if (type === "redirect" && typeof href !== "string") {
+          type = "coming_soon";
+          href = undefined;
+        }
+
+        return {
+          label,
+          type,
+          ...(nextScene && { nextScene }),
+          ...(href && { href })
+        } as DiaryOption;
+      });
+
+      parsed = {
+        heroMessage: rawParsed.heroMessage,
+        options: validOptions,
+        ps: typeof rawParsed.ps === "string" ? rawParsed.ps : undefined
+      };
+
+    } catch (parseError) {
+      const errorMsg = parseError instanceof Error ? parseError.message : "JSON parse/validation failed";
       await updateProgress(progressId, {
         rawResponse: rawText,
-        error: `JSON parse failed. Raw: ${rawText.slice(0, 500)}`,
+        error: `${errorMsg}. Raw: ${rawText.slice(0, 500)}`,
         durationMs,
       });
-      return { success: false, progressId, durationMs, error: "JSON parse failed" };
+      return { success: false, progressId, durationMs, error: errorMsg };
     }
 
     const newScene: DiaryScene = {

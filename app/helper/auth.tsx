@@ -8,11 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
-import { useRouter, usePathname } from "next/navigation";
 import { auth } from "@/lib/firebase";
-
-// Routes that do NOT require authentication
-const PUBLIC_PATHS = ["/", "/welcome"];
 
 interface AuthContextValue {
   user: User | null;
@@ -27,8 +23,6 @@ const AuthContext = createContext<AuthContextValue>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
-  const pathname = usePathname();
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -37,14 +31,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     return unsub;
   }, []);
-
-  useEffect(() => {
-    if (loading) return;
-    const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
-    if (!user && !isPublic) {
-      router.replace("/");
-    }
-  }, [user, loading, pathname, router]);
 
   return (
     <AuthContext.Provider value={{ user, loading }}>

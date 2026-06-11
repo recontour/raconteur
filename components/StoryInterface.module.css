@@ -276,3 +276,57 @@
   from { opacity: 0; }
   to   { opacity: 1; }
 }
+
+/* --- Inline Auth UI ---------------------------------------------------------- */
+
+.authForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  animation: gridIn 0.42s cubic-bezier(0.34, 1.28, 0.64, 1) both;
+}
+
+.authInput {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(32px) saturate(1.6);
+  -webkit-backdrop-filter: blur(32px) saturate(1.6);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05), 0 1px 0 rgba(255, 255, 255, 0.4) inset;
+  padding: 1rem 1.2rem;
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: rgba(15, 15, 35, 0.9);
+  text-align: center;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.authInput::placeholder {
+  color: rgba(15, 15, 35, 0.4);
+}
+
+.authInput:focus {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1), 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+}
+
+.authInput:disabled {
+  opacity: 0.6;
+}
+
+.authError {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #d32f2f;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 0.4rem 0.8rem;
+  border-radius: 8px;
+  align-self: center;
+}
+
